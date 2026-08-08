@@ -3,6 +3,7 @@ import RNTrackPlayer, { Event, State } from "react-native-track-player";
 import TrackPlayer from "@/core/trackPlayer";
 import { musicIsPaused } from "@/utils/trackUtils";
 import PersistStatus from "@/utils/persistStatus";
+import PlaybackNavigation from "@/core/playbackNavigation";
 
 let resumeState: State | null;
 module.exports = async function () {
@@ -11,10 +12,10 @@ module.exports = async function () {
         TrackPlayer.pause(),
     );
     RNTrackPlayer.addEventListener(Event.RemotePrevious, () =>
-        TrackPlayer.skipToPrevious(),
+        PlaybackNavigation.previous(),
     );
     RNTrackPlayer.addEventListener(Event.RemoteNext, () =>
-        TrackPlayer.skipToNext(),
+        PlaybackNavigation.next(),
     );
     RNTrackPlayer.addEventListener(
         Event.RemoteDuck,

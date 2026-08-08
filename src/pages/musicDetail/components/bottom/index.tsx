@@ -4,6 +4,7 @@ import rpx from "@/utils/rpx";
 import SeekBar from "./seekBar";
 import PlayControl from "./playControl";
 import useOrientation from "@/hooks/useOrientation";
+import LyricLineModeSwitch from "./lyricLineModeSwitch";
 
 export default function Bottom() {
     const orientation = useOrientation();
@@ -13,11 +14,12 @@ export default function Bottom() {
                 style.wrapper,
                 orientation === "horizontal"
                     ? {
-                        height: rpx(156),
+                        height: rpx(204),
                     }
                     : undefined,
             ]}>
             <SeekBar />
+            <LyricLineModeSwitch />
             <PlayControl />
         </View>
     );

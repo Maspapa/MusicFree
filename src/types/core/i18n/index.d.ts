@@ -102,6 +102,9 @@ export interface ILanguageData {
     "lyric.unlinkLyric": string; // 取消链接歌词
     "lyric.noLyric": string; // 暂无歌词
     "lyric.searchLyric": string; // 搜索歌词
+    "lyric.lineNavigation": string; // 逐句模式
+    "lyric.lineNavigation.loading": string; // 歌词加载中
+    "lyric.lineNavigation.requiresSyncedLyrics": string; // 需要时间轴歌词
 
     // 音乐列表编辑器相关
     "musicListEditor.selectMusicCount": string; // 选择的音乐数量

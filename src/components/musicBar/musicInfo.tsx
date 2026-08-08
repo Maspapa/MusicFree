@@ -18,6 +18,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { timingConfig } from "@/constants/commonConst";
+import PlaybackNavigation from "@/core/playbackNavigation";
 
 interface IBarMusicItemProps {
     musicItem: IMusic.IMusicItem | null;
@@ -109,9 +110,9 @@ interface IMusicInfoProps {
 
 function skipMusicItem(direction: number) {
     if (direction === -1) {
-        TrackPlayer.skipToNext();
+        PlaybackNavigation.next();
     } else if (direction === 1) {
-        TrackPlayer.skipToPrevious();
+        PlaybackNavigation.previous();
     }
 }
 

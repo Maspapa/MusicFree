@@ -9,6 +9,7 @@ import TrackPlayer, { useMusicState, useRepeatMode } from "@/core/trackPlayer";
 import useOrientation from "@/hooks/useOrientation";
 import delay from "@/utils/delay";
 import { musicIsPaused } from "@/utils/trackUtils";
+import PlaybackNavigation from "@/core/playbackNavigation";
 
 export default function () {
     const repeatMode = useRepeatMode();
@@ -45,7 +46,7 @@ export default function () {
                     name={"skip-left"}
                     size={rpx(56)}
                     onPress={() => {
-                        TrackPlayer.skipToPrevious();
+                        PlaybackNavigation.previous();
                     }}
                 />
                 <Icon
@@ -65,7 +66,7 @@ export default function () {
                     name={"skip-right"}
                     size={rpx(56)}
                     onPress={() => {
-                        TrackPlayer.skipToNext();
+                        PlaybackNavigation.next();
                     }}
                 />
                 <Icon
@@ -84,7 +85,7 @@ export default function () {
 const style = StyleSheet.create({
     wrapper: {
         width: "100%",
-        marginTop: rpx(36),
+        marginTop: rpx(16),
         height: rpx(100),
         flexDirection: "row",
         justifyContent: "space-around",

@@ -38,6 +38,14 @@ interface IPersistStatus {
     "lyric.showTranslation": boolean;
     /** 歌词-详情页字体大小 */
     "lyric.detailFontSize": number;
+    /** Whether previous/next controls navigate synchronized lyric lines. */
+    "lyric.lineNavigation": boolean;
+    /** Seekable lyric timestamps for the current track and playback service. */
+    "lyric.lineNavigationTimeline": {
+        id: string;
+        platform: string;
+        times: number[];
+    };
 }
 
 function set<K extends keyof IPersistStatus>(

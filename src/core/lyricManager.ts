@@ -17,6 +17,7 @@ import { unlink, writeFile } from "react-native-fs";
 import RNTrackPlayer, { Event } from "react-native-track-player";
 import { TrackPlayerEvents } from "@/core.defination/trackPlayer";
 import { IPluginManager } from "@/types/core/pluginManager";
+import { getNavigableLyricTimes } from "@/utils/lyricLineNavigation";
 
 
 interface ILyricState {
@@ -231,6 +232,8 @@ class LyricManager implements IInjectable {
             hasTranslation: false,
         });
         getDefaultStore().set(currentLyricItemAtom, null);
+        PersistStatus.set("lyric.lineNavigation", false);
+        PersistStatus.set("lyric.lineNavigationTimeline", undefined);
     }
 
     private setLyricAsNoLyricState() {
@@ -307,6 +310,21 @@ class LyricManager implements IInjectable {
                 hasTranslation: !!lrcSource.translation,
                 meta: this.lyricParser.getMeta(),
             });
+
+            const times = getNavigableLyricTimes(
+                this.lyricState.lyrics,
+                +(this.lyricState.meta?.offset ?? 0),
+            );
+            if (times.length < 2) {
+                PersistStatus.set("lyric.lineNavigation", false);
+                PersistStatus.set("lyric.lineNavigationTimeline", undefined);
+            } else {
+                PersistStatus.set("lyric.lineNavigationTimeline", {
+                    id: currentMusicItem.id,
+                    platform: currentMusicItem.platform,
+                    times,
+                });
+            }
 
             const currentLyric = ignoreProgress ? (this.lyricParser.getLyricItems()?.[0] ?? null) : this.lyricParser.getPosition((await this.trackPlayer.getProgress()).position);
             getDefaultStore().set(currentLyricItemAtom, currentLyric || null);
