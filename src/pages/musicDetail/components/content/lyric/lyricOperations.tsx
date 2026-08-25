@@ -28,6 +28,7 @@ export default function LyricOperations(props: ILyricOperationsProps) {
         "lyric.showTranslation",
         false,
     );
+    const wordLearning = PersistStatus.useValue("lyric.wordLearning", false);
     const colors = useColors();
     const orientation = useOrientation();
 
@@ -110,6 +111,20 @@ export default function LyricOperations(props: ILyricOperationsProps) {
                         !showTranslation,
                     );
                     scrollToCurrentLrcItem();
+                }}
+            />
+            <Icon
+                name="language"
+                size={iconSizeConst.normal}
+                opacity={wordLearning ? 1 : 0.5}
+                color={wordLearning ? colors.primary : "white"}
+                onPress={() => {
+                    PersistStatus.set("lyric.wordLearning", !wordLearning);
+                    Toast.success(
+                        wordLearning
+                            ? "点词学习已关闭"
+                            : "点词学习已开启：点击英文单词即可翻译和发音",
+                    );
                 }}
             />
             <Icon

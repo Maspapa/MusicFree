@@ -40,6 +40,8 @@ interface IPersistStatus {
     "lyric.detailFontSize": number;
     /** Whether previous/next controls navigate synchronized lyric lines. */
     "lyric.lineNavigation": boolean;
+    /** Whether words in English lyrics can be tapped for offline lookup. */
+    "lyric.wordLearning": boolean;
     /** Seekable lyric timestamps for the current track and playback service. */
     "lyric.lineNavigationTimeline": {
         id: string;

@@ -105,6 +105,9 @@ export interface ILanguageData {
     "lyric.lineNavigation": string; // 逐句模式
     "lyric.lineNavigation.loading": string; // 歌词加载中
     "lyric.lineNavigation.requiresSyncedLyrics": string; // 需要时间轴歌词
+    "lyric.wordLearning.pronounce": string; // 朗读单词
+    "lyric.wordLearning.noEntry": string; // 词典未收录
+    "lyric.wordLearning.ttsUnavailable": string; // 发音不可用
 
     // 音乐列表编辑器相关
     "musicListEditor.selectMusicCount": string; // 选择的音乐数量

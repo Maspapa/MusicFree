@@ -19,6 +19,9 @@ import { IconButtonWithGesture } from "@/components/base/iconButton.tsx";
 import { getMediaExtraProperty } from "@/utils/mediaExtra";
 import lyricManager, { useCurrentLyricItem, useLyricState } from "@/core/lyricManager";
 import { useI18N } from "@/core/i18n";
+import LyricDictionary, { ILyricDictionaryEntry } from "@/native/lyricDictionary";
+import WordCard from "./wordCard";
+import Toast from "@/utils/toast";
 
 const ITEM_HEIGHT = rpx(92);
 
@@ -49,11 +52,16 @@ export default function Lyric(props: IProps) {
         false,
     );
     const fontSizeKey = PersistStatus.useValue("lyric.detailFontSize", 1);
+    const wordLearning = PersistStatus.useValue("lyric.wordLearning", false);
     const fontSizeStyle = useMemo(
         () => ({
             fontSize: fontSizeMap[fontSizeKey!],
         }),
         [fontSizeKey],
+    );
+    const lyricExtraData = useMemo(
+        () => [currentLrcItem, showTranslation, wordLearning],
+        [currentLrcItem, showTranslation, wordLearning],
     );
 
     const [draggingIndex, setDraggingIndex, setDraggingIndexImmi] =
@@ -62,6 +70,12 @@ export default function Lyric(props: IProps) {
     const { t } = useI18N();
 
     const [layout, setLayout] = useState<LayoutRectangle>();
+    const [selectedWord, setSelectedWord] = useState("");
+    const [dictionaryEntry, setDictionaryEntry] = useState<ILyricDictionaryEntry | null>(null);
+    const [dictionaryLoading, setDictionaryLoading] = useState(false);
+    const lookupSequenceRef = useRef(0);
+    const speechSequenceRef = useRef(0);
+    const resumeAfterSpeechRef = useRef(false);
 
     const listRef = useRef<FlatList<IParsedLrcItem> | null>();
 
@@ -208,7 +222,64 @@ export default function Lyric(props: IProps) {
         }
     };
 
+    const speakWord = useCallback(async (word: string) => {
+        const sequence = ++speechSequenceRef.current;
+        const shouldResume = resumeAfterSpeechRef.current || !musicIsPaused(musicState);
+        resumeAfterSpeechRef.current = shouldResume;
+        try {
+            if (!musicIsPaused(musicState)) {
+                await TrackPlayer.pause();
+            }
+            await LyricDictionary.speak(word);
+        } catch {
+            if (sequence === speechSequenceRef.current) {
+                Toast.warn(t("lyric.wordLearning.ttsUnavailable"));
+            }
+        } finally {
+            if (sequence === speechSequenceRef.current && shouldResume) {
+                resumeAfterSpeechRef.current = false;
+                await TrackPlayer.play();
+            }
+        }
+    }, [musicState, t]);
+
+    const onWordPress = useCallback(async (word: string) => {
+        const sequence = ++lookupSequenceRef.current;
+        setSelectedWord(word);
+        setDictionaryEntry(null);
+        setDictionaryLoading(true);
+        speakWord(word);
+        try {
+            const entry = await LyricDictionary.lookup(word);
+            if (sequence === lookupSequenceRef.current) {
+                setDictionaryEntry(entry);
+            }
+        } catch {
+            if (sequence === lookupSequenceRef.current) {
+                setDictionaryEntry(null);
+            }
+        } finally {
+            if (sequence === lookupSequenceRef.current) {
+                setDictionaryLoading(false);
+            }
+        }
+    }, [speakWord]);
+
+    const closeWordCard = useCallback(() => {
+        lookupSequenceRef.current += 1;
+        speechSequenceRef.current += 1;
+        setSelectedWord("");
+        setDictionaryLoading(false);
+        LyricDictionary.stopSpeaking().finally(() => {
+            if (resumeAfterSpeechRef.current) {
+                resumeAfterSpeechRef.current = false;
+                TrackPlayer.play();
+            }
+        });
+    }, []);
+
     const tapGesture = Gesture.Tap()
+        .enabled(!wordLearning)
         .onStart(() => {
             onTurnPageClick?.();
         })
@@ -295,17 +366,15 @@ export default function Lyric(props: IProps) {
                             data={lyrics}
                             initialNumToRender={30}
                             overScrollMode="never"
-                            extraData={currentLrcItem}
+                            extraData={lyricExtraData}
                             renderItem={({ item, index }) => {
-                                let text = item.lrc;
-                                if (showTranslation && hasTranslation) {
-                                    text += `\n${item?.translation ?? ""}`;
-                                }
-
                                 return (
                                     <LyricItemComponent
                                         index={index}
-                                        text={text}
+                                        text={item.lrc}
+                                        translation={showTranslation && hasTranslation ? item.translation : undefined}
+                                        wordLearning={!!wordLearning}
+                                        onWordPress={onWordPress}
                                         fontSize={fontSizeStyle.fontSize}
                                         onLayout={handleLyricItemLayout}
                                         light={draggingIndex === index}
@@ -366,6 +435,16 @@ export default function Lyric(props: IProps) {
             </GestureDetector>
             <LyricOperations
                 scrollToCurrentLrcItem={delayedScrollToCurrentLrcItem}
+            />
+            <WordCard
+                visible={!!selectedWord}
+                surfaceWord={selectedWord}
+                entry={dictionaryEntry}
+                loading={dictionaryLoading}
+                onSpeak={() => {
+                    speakWord(selectedWord);
+                }}
+                onClose={closeWordCard}
             />
         </>
     );
