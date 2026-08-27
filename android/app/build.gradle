@@ -113,8 +113,10 @@ static def getVersion() {
 //     return versionCode.intValue()
 // }
 
-def appVersion = getVersion()
-def appVersionCode = 400011
+// CI can override these values so every published APK is upgradeable without
+// changing package.json for each build. Local builds keep the existing values.
+def appVersion = project.findProperty("appVersionName") ?: getVersion()
+def appVersionCode = (project.findProperty("appVersionCode") ?: "400011").toInteger()
 
 
 android {
