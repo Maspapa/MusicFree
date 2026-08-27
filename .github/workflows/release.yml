@@ -1,0 +1,127 @@
+name: 一键发布 Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: 要构建的分支或提交
+        required: true
+        default: feat/lyric-line-navigation
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: 构建并发布
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: 配置 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci --prefer-offline --no-audit
+
+      - name: 配置发布签名
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64" || { echo "缺少 RELEASE_KEYSTORE_BASE64"; exit 1; }
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+          {
+            echo "RELEASE_STORE_FILE=release.keystore"
+            echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+          } > android/keystore.properties
+          chmod 600 android/keystore.properties android/app/release.keystore
+
+      - name: 生成发布版本号
+        id: version
+        shell: bash
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          VERSION_NAME="${BASE_VERSION}-maspapa.${GITHUB_RUN_NUMBER}"
+          VERSION_CODE=$((500000 + GITHUB_RUN_NUMBER))
+          TAG="v${VERSION_NAME}"
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: 构建 Release APK
+        shell: bash
+        run: |
+          chmod +x android/gradlew
+          # 腾讯云镜像适合本地网络；GitHub Runner 使用 Gradle 官方源更稳定。
+          sed -i 's#mirrors.cloud.tencent.com/gradle/#services.gradle.org/distributions/#' android/gradle/wrapper/gradle-wrapper.properties
+          cd android
+          ./gradlew assembleRelease \
+            -PappVersionName="${{ steps.version.outputs.name }}" \
+            -PappVersionCode="${{ steps.version.outputs.code }}" \
+            --build-cache
+
+      - name: 整理安装包
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk \
+            "release-assets/MusicFree-${{ steps.version.outputs.name }}-arm64-v8a.apk"
+          cp android/app/build/outputs/apk/release/app-universal-release.apk \
+            "release-assets/MusicFree-${{ steps.version.outputs.name }}-universal.apk"
+          sha256sum release-assets/*.apk > release-assets/SHA256SUMS.txt
+
+      - name: 保存全部 APK 构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: MusicFree-${{ steps.version.outputs.name }}-all-apks
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: 创建 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            release-assets/* \
+            --target "${{ inputs.source_ref }}" \
+            --title "MusicFree ${{ steps.version.outputs.name }}" \
+            --generate-notes
+
+      - name: 发布摘要
+        shell: bash
+        run: |
+          {
+            echo "## 发布完成"
+            echo ""
+            echo "- 版本：${{ steps.version.outputs.name }}"
+            echo "- 来源：${{ inputs.source_ref }}"
+            echo "- ARM64：大多数安卓手机使用"
+            echo "- Universal：不确定架构时使用"
+          } >> "$GITHUB_STEP_SUMMARY"
