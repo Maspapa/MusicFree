@@ -120,6 +120,12 @@ def appVersionCode = (project.findProperty("appVersionCode") ?: "400011").toInte
 
 
 android {
+    packagingOptions {
+        resources {
+            // Preserve notices from both Kuromoji core and its IPADIC dictionary.
+            merges += ["META-INF/*.md", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/DEPENDENCIES"]
+        }
+    }
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
