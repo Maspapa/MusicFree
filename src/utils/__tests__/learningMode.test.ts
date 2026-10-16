@@ -20,6 +20,10 @@ afterEach(async () => {
 });
 
 describe("learning playback", () => {
+    it("starts untimed lyrics from the first line rather than the last", async () => {
+        await LearningMode.enter(lyrics.map(line => ({ ...line, time: 0 }))); await flush();
+        expect(LearningMode.currentLine?.lrc).toBe("Hello");
+    });
     it("pauses the song, reads the current line at half speed, and preserves song position", async () => {
         await LearningMode.enter(lyrics); await flush();
         expect(speech.speakText).toHaveBeenCalledWith("Good morning", "en", 0.5);

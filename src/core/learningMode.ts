@@ -76,7 +76,10 @@ const LearningMode = {
         lines = nextLines;
         songLanguage = lyrics.some(item => hasJapanese(item.lrc)) ? "ja" : "en";
         let index = 0;
-        for (let i = 0; i < lines.length; i++) if (lines[i].time + offset <= progress.position) index = i;
+        const timed = new Set(lines.map(line => line.time)).size > 1;
+        if (timed) {
+            for (let i = 0; i < lines.length; i++) if (lines[i].time + offset <= progress.position) index = i;
+        }
         patch({ enabled: true, speaking: false, index, loop: false, error: "" });
         void play();
     },
