@@ -1,6 +1,7 @@
 export interface ILyricToken {
     text: string;
     isWord: boolean;
+    pronunciation?: string;
 }
 
 const ENGLISH_WORD = /[A-Za-z]+(?:[’'][A-Za-z]+)*(?:-[A-Za-z]+)*/g;

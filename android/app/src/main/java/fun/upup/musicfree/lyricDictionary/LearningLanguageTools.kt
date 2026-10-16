@@ -31,6 +31,7 @@ class LearningLanguageTools(private val context: ReactApplicationContext) {
                     })
                     result.pushMap(Arguments.createMap().apply {
                         putString("text", token.surface)
+                        putString("pronunciation", token.pronunciation.takeIf { it != "*" } ?: token.surface)
                         putBoolean("isWord", token.surface.any { it.isLetter() })
                     })
                     offset = token.position + token.surface.length

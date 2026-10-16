@@ -23,7 +23,7 @@ import LyricDictionary, { ILyricDictionaryEntry } from "@/native/lyricDictionary
 import WordCard from "./wordCard";
 import Toast from "@/utils/toast";
 import LearningMode, { useLearningMode } from "@/core/learningMode";
-import { hasJapanese } from "@/utils/learningLyrics";
+import { hasJapanese, learningLanguage } from "@/utils/learningLyrics";
 
 const ITEM_HEIGHT = rpx(92);
 
@@ -65,8 +65,8 @@ export default function Lyric(props: IProps) {
         [fontSizeKey],
     );
     const lyricExtraData = useMemo(
-        () => [currentLrcItem, showTranslation, wordLearning, learning.enabled],
-        [currentLrcItem, showTranslation, wordLearning, learning.enabled],
+        () => [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken],
+        [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken],
     );
 
     const [draggingIndex, setDraggingIndex, setDraggingIndexImmi] =
@@ -401,7 +401,8 @@ export default function Lyric(props: IProps) {
                                         text={item.lrc}
                                         translation={learning.enabled ? (index === currentLrcItem?.index ? currentLrcItem.translation : item.translation) : showTranslation && hasTranslation ? item.translation : undefined}
                                         wordLearning={!!wordLearning}
-                                        japanese={learning.enabled && (LearningMode.language === "ja" || hasJapanese(item.lrc))}
+                                        activeToken={learning.enabled && currentLrcItem?.index === index ? learning.activeToken : -1}
+                                        japanese={learning.enabled && learningLanguage(item.lrc, LearningMode.language) !== "en"}
                                         learningLanguage={learning.enabled ? LearningMode.language : undefined}
                                         onWordPress={onWordPress}
                                         fontSize={fontSizeStyle.fontSize}

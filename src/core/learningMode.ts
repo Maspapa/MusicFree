@@ -4,12 +4,15 @@ import LyricDictionary from "@/native/lyricDictionary";
 import { hasJapanese, learningLanguage, learningLines } from "@/utils/learningLyrics";
 import type { IParsedLrcItem } from "@/utils/lrcParser";
 import Toast from "@/utils/toast";
+import { tokenizeLyricLine } from "@/utils/lyricWords";
 
-const stateAtom = atom({ enabled: false, speaking: false, index: 0, loop: false, error: "" });
+const stateAtom = atom({ enabled: false, speaking: false, index: 0, loop: false, error: "", activeToken: -1 });
 let lines: IParsedLrcItem[] = [];
 let songLanguage: "en" | "ja" = "en";
 let generation = 0;
 let loopTimer: ReturnType<typeof setTimeout> | undefined;
+let wordTimer: ReturnType<typeof setTimeout> | undefined;
+let finishWordGap: (() => void) | undefined;
 const state = () => getDefaultStore().get(stateAtom);
 const patch = (value: Partial<ReturnType<typeof state>>) => getDefaultStore().set(stateAtom, { ...state(), ...value });
 
@@ -17,7 +20,12 @@ async function pause() {
     generation += 1;
     clearTimeout(loopTimer);
     loopTimer = undefined;
-    patch({ speaking: false });
+    clearTimeout(wordTimer);
+    wordTimer = undefined;
+    const finish = finishWordGap;
+    finishWordGap = undefined;
+    finish?.();
+    patch({ speaking: false, activeToken: -1 });
     await LyricDictionary.stopSpeaking();
 }
 
@@ -33,9 +41,23 @@ async function play() {
     try {
         await RNTrackPlayer.pause();
         if (sequence !== generation) return;
-        await LyricDictionary.speakText(line.lrc, learningLanguage(line.lrc, songLanguage), 0.5);
+        const language = learningLanguage(line.lrc, songLanguage);
+        const tokens = language === "en" ? tokenizeLyricLine(line.lrc) : await LyricDictionary.tokenizeJapanese(line.lrc);
         if (sequence !== generation) return;
-        patch({ speaking: state().loop });
+        const words = tokens.map((token, index) => ({ ...token, index })).filter(token => token.isWord);
+        for (let i = 0; i < words.length; i++) {
+            if (sequence !== generation) return;
+            const word = words[i];
+            patch({ activeToken: word.index });
+            await LyricDictionary.speakText(language === "ja" ? word.pronunciation || word.text : word.text, language, 0.5);
+            if (sequence !== generation) return;
+            if (i < words.length - 1) await new Promise<void>(resolve => {
+                finishWordGap = resolve;
+                wordTimer = setTimeout(() => { wordTimer = undefined; finishWordGap = undefined; resolve(); }, 400);
+            });
+        }
+        if (sequence !== generation) return;
+        patch({ speaking: state().loop, activeToken: -1 });
         if (state().enabled && state().loop) {
             loopTimer = setTimeout(() => {
                 loopTimer = undefined; if (sequence === generation) void play();
@@ -44,7 +66,7 @@ async function play() {
     } catch {
         if (sequence !== generation) return;
         const error = "朗读不可用，请在安卓系统的文字转语音设置中安装英语／日语语音";
-        patch({ speaking: false, error });
+        patch({ speaking: false, activeToken: -1, error });
         Toast.warn(error);
     }
 }

@@ -42,7 +42,7 @@ export default function LyricLineModeSwitch() {
             void change(value);
         }} />
         {learning.enabled && <>
-            <Text style={styles.label}>0.5×</Text>
+            <Text style={styles.label}>逐词 · 0.5×</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="单句循环" onPress={() => LearningMode.toggleLoop()}>
                 <Text style={[styles.label, learning.loop && styles.active]}>单句循环{learning.loop ? " · 开" : ""}</Text>
             </Pressable>

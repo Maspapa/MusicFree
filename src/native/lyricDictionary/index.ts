@@ -13,7 +13,7 @@ interface ILyricDictionaryModule {
     speak(word: string): Promise<void>;
     stopSpeaking(): Promise<void>;
     speakText(text: string, language: string, rate: number): Promise<void>;
-    tokenizeJapanese(text: string): Promise<Array<{ text: string; isWord: boolean }>>;
+    tokenizeJapanese(text: string): Promise<Array<{ text: string; isWord: boolean; pronunciation?: string }>>;
     lookupJapanese(word: string): Promise<ILyricDictionaryEntry | null>;
     translate(text: string, language: string): Promise<string>;
 }

@@ -24,6 +24,7 @@ interface ILyricItemComponentProps {
     wordLearning?: boolean;
     japanese?: boolean;
     learningLanguage?: LearningLanguage;
+    activeToken?: number;
     onWordPress?: (word: string) => void;
 
     onLayout?: (index: number, height: number) => void;
@@ -74,7 +75,7 @@ function _LyricItemComponent(props: ILyricItemComponentProps) {
                     ? tokens.map((token, tokenIndex) => token.isWord ? (
                         <Text
                             key={`${tokenIndex}-${token.text}`}
-                            style={lyricStyles.clickableWord}
+                            style={[lyricStyles.clickableWord, props.activeToken === tokenIndex ? lyricStyles.speakingWord : null]}
                             onPress={() => onWordPress?.(token.text)}>
                             {token.text}
                         </Text>
@@ -99,6 +100,7 @@ const LyricItemComponent = memo(
         prev.wordLearning === curr.wordLearning &&
         prev.japanese === curr.japanese &&
         prev.learningLanguage === curr.learningLanguage &&
+        prev.activeToken === curr.activeToken &&
         prev.onWordPress === curr.onWordPress,
 );
 
@@ -124,6 +126,12 @@ const lyricStyles = StyleSheet.create({
     clickableWord: {
         textDecorationLine: "underline",
         textDecorationStyle: "dotted",
+    },
+    speakingWord: {
+        color: "#172554",
+        backgroundColor: "#facc15",
+        fontWeight: "bold",
+        textDecorationLine: "none",
     },
     translation: {
         opacity: 0.72,
