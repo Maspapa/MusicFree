@@ -2,8 +2,10 @@ import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals
 jest.mock("react-native-track-player", () => ({ __esModule: true, default: { pause: jest.fn(async () => undefined), getProgress: jest.fn(async () => ({ position: 11 })), play: jest.fn(), seekTo: jest.fn() } }));
 jest.mock("@/native/lyricDictionary", () => ({ __esModule: true, default: { speakText: jest.fn(async () => undefined), stopSpeaking: jest.fn(async () => undefined), tokenizeChinese: jest.fn(async () => [{ text: "海闊", isWord: true }, { text: "天空", isWord: true }]), tokenizeJapanese: jest.fn(async () => [{ text: "私", isWord: true, pronunciation: "ワタシ" }, { text: "は", isWord: true, pronunciation: "ワ" }]) } }));
 jest.mock("@/utils/toast", () => ({ __esModule: true, default: { warn: jest.fn() } }));
+jest.mock("@/utils/persistStatus", () => ({ __esModule: true, default: { get: jest.fn(() => null), set: jest.fn() } }));
 
-import LearningMode from "@/core/learningMode";
+import LearningMode, { validLearningRate } from "@/core/learningMode";
+import PersistStatus from "@/utils/persistStatus";
 import speech from "@/native/lyricDictionary";
 import player from "react-native-track-player";
 
@@ -13,13 +15,64 @@ const flush = async () => {
 };
 
 beforeEach(async () => {
-    await LearningMode.exit(); jest.clearAllMocks(); jest.useFakeTimers();
+    await LearningMode.exit();
+    while (LearningMode.state.rate !== 0.5) await LearningMode.cycleRate();
+    jest.clearAllMocks(); jest.useFakeTimers();
 });
 afterEach(async () => {
     await LearningMode.exit(); jest.useRealTimers();
 });
 
 describe("learning playback", () => {
+    it("cycles through the three speeds and saves the selection without starting paused speech", async () => {
+        expect(LearningMode.state.rate).toBe(0.5);
+        await LearningMode.cycleRate();
+        expect(LearningMode.state.rate).toBe(1);
+        expect(PersistStatus.set).toHaveBeenLastCalledWith("lyric.learningRate", 1);
+        await LearningMode.cycleRate();
+        expect(LearningMode.state.rate).toBe(0.75);
+        await LearningMode.cycleRate();
+        expect(LearningMode.state.rate).toBe(0.5);
+        expect(speech.speakText).not.toHaveBeenCalled();
+        expect(validLearningRate(0.75)).toBe(0.75);
+        expect(validLearningRate(2)).toBe(0.5);
+        expect(validLearningRate("1")).toBe(0.5);
+        expect(validLearningRate(null)).toBe(0.5);
+    });
+    it("restarts an active line at the selected speed and cancels old pending words", async () => {
+        await LearningMode.enter(lyrics); await flush();
+        const switching = LearningMode.cycleRate(); await flush();
+        expect(speech.speakText).toHaveBeenLastCalledWith("Good", "en", 1);
+        jest.advanceTimersByTime(400); await flush(); await switching;
+        expect(speech.speakText).toHaveBeenLastCalledWith("morning", "en", 1);
+        expect(speech.speakText).not.toHaveBeenCalledWith("morning", "en", 0.5);
+        await LearningMode.speakWord("Good");
+        expect(speech.speakText).toHaveBeenLastCalledWith("Good", "en", 1);
+        await LearningMode.exit();
+        await LearningMode.enter([{ time: 0, index: 0, lrc: "Hello" }]); await flush();
+        expect(speech.speakText).toHaveBeenLastCalledWith("Hello", "en", 1);
+    });
+    it("does not restart a paused sentence when changing speed", async () => {
+        await LearningMode.enter(lyrics); await flush(); await LearningMode.pause();
+        jest.mocked(speech.speakText).mockClear();
+        await LearningMode.cycleRate();
+        expect(speech.speakText).not.toHaveBeenCalled();
+        expect(LearningMode.state.speaking).toBe(false);
+    });
+    it("uses the latest speed after rapid taps without reviving the old word sequence", async () => {
+        await LearningMode.enter(lyrics); await flush();
+        const first = LearningMode.cycleRate();
+        const second = LearningMode.cycleRate();
+        await flush();
+        expect(LearningMode.state.rate).toBe(0.75);
+        expect(speech.speakText).toHaveBeenLastCalledWith("Good", "en", 0.75);
+        jest.advanceTimersByTime(400); await flush();
+        await Promise.all([first, second]);
+        expect(speech.speakText).toHaveBeenLastCalledWith("morning", "en", 0.75);
+        expect(speech.speakText).not.toHaveBeenCalledWith("morning", "en", 0.5);
+        await LearningMode.speakWord("morning");
+        expect(speech.speakText).toHaveBeenLastCalledWith("morning", "en", 1);
+    });
     it("starts untimed lyrics from the first line rather than the last", async () => {
         await LearningMode.enter(lyrics.map(line => ({ ...line, time: 0 }))); await flush();
         expect(LearningMode.currentLine?.lrc).toBe("Hello");

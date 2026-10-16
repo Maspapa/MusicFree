@@ -12,6 +12,8 @@ const getStore = () => {
 };
 
 interface IPersistStatus {
+    /** 学习模式朗读速度，与歌曲播放速度分开保存。 */
+    "lyric.learningRate": number;
     /** 当前的音乐 */
     "music.musicItem": IMusic.IMusicItem;
     /** 进度 */

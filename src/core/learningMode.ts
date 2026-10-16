@@ -5,8 +5,14 @@ import { hasJapanese, learningLanguage, learningLines, LearningLanguage, Learnin
 import type { IParsedLrcItem } from "@/utils/lrcParser";
 import Toast from "@/utils/toast";
 import { tokenizeLearningLine } from "@/utils/learningTokens";
+import PersistStatus from "@/utils/persistStatus";
 
-const stateAtom = atom({ enabled: false, speaking: false, index: 0, loop: false, error: "", activeToken: -1, languageChoice: "auto" as LearningLanguageChoice });
+export const LEARNING_RATES = [1, 0.75, 0.5] as const;
+export type LearningRate = typeof LEARNING_RATES[number];
+export function validLearningRate(value: unknown): LearningRate {
+    return LEARNING_RATES.includes(value as LearningRate) ? value as LearningRate : 0.5;
+}
+const stateAtom = atom({ enabled: false, speaking: false, index: 0, loop: false, error: "", activeToken: -1, languageChoice: "auto" as LearningLanguageChoice, rate: validLearningRate(PersistStatus.get("lyric.learningRate")) });
 let lines: IParsedLrcItem[] = [];
 let songLanguage: LearningLanguage = "en";
 let detectedLanguage: LearningLanguage = "en";
@@ -51,7 +57,7 @@ async function play() {
             const word = words[i];
             patch({ activeToken: word.index });
             const wordLanguage = language === "yue" || language === "zh" ? learningLanguage(word.text, language) : language;
-            await LyricDictionary.speakText(language === "ja" ? word.pronunciation || word.text : word.text, wordLanguage, 0.5);
+            await LyricDictionary.speakText(language === "ja" ? word.pronunciation || word.text : word.text, wordLanguage, state().rate);
             if (sequence !== generation) return;
             if (i < words.length - 1) await new Promise<void>(resolve => {
                 finishWordGap = resolve;
@@ -118,6 +124,12 @@ const LearningMode = {
         await pause();
     },
     play, pause,
+    async cycleRate() {
+        const rate = LEARNING_RATES[(LEARNING_RATES.indexOf(state().rate) + 1) % LEARNING_RATES.length];
+        PersistStatus.set("lyric.learningRate", rate);
+        patch({ rate });
+        if (state().enabled && state().speaking) await play();
+    },
     async setLanguage(languageChoice: LearningLanguageChoice) {
         const stopping = pause();
         const sequence = generation;

@@ -53,7 +53,9 @@ export default function LyricLineModeSwitch() {
         }} />
         <Pressable accessibilityRole="button" accessibilityLabel="选择学习语言" onPress={() => setShowLanguages(true)}><Text style={styles.label}>{learningLanguageLabels[choice]} ▾</Text></Pressable>
         {learning.enabled && <>
-            <Text style={styles.label}>逐词 · 0.5×</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={`朗读速度 ${learning.rate} 倍，点击切换`} onPress={() => {
+                void LearningMode.cycleRate().catch(() => Toast.warn("切换朗读速度失败，请重试"));
+            }}><Text style={[styles.label, styles.active]}>逐词 · {learning.rate}×</Text></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="单句循环" onPress={() => LearningMode.toggleLoop()}>
                 <Text style={[styles.label, learning.loop && styles.active]}>单句循环{learning.loop ? " · 开" : ""}</Text>
             </Pressable>
