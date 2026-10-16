@@ -86,7 +86,7 @@ jobs:
           # 腾讯云镜像适合本地网络；GitHub Runner 使用 Gradle 官方源更稳定。
           sed -i 's#mirrors.cloud.tencent.com/gradle/#services.gradle.org/distributions/#' android/gradle/wrapper/gradle-wrapper.properties
           cd android
-          ./gradlew assembleRelease \
+          ./gradlew :app:testReleaseUnitTest assembleRelease \
             -PappVersionName="${{ steps.version.outputs.name }}" \
             -PappVersionCode="${{ steps.version.outputs.code }}" \
             --build-cache

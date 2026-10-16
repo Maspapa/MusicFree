@@ -222,6 +222,19 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
     fun downloadTranslationModel(language: String, wifiOnly: Boolean, promise: Promise) = learning.models.download(language, wifiOnly, promise)
 
     @ReactMethod
+    fun cancelTranslationModel(language: String, promise: Promise) = learning.models.cancel(language, promise)
+
+    @ReactMethod
+    fun openModelDownloads(promise: Promise) {
+        try {
+            context.startActivity(Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            promise.resolve(null)
+        } catch (error: Exception) {
+            promise.reject("DOWNLOAD_SETTINGS_UNAVAILABLE", "无法打开下载管理，请从通知栏或系统设置打开下载管理。", error)
+        }
+    }
+
+    @ReactMethod
     fun openSpeechSettings(promise: Promise) {
         try {
             context.startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

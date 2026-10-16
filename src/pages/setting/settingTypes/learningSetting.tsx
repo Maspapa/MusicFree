@@ -7,6 +7,7 @@ import LyricDictionary from "@/native/lyricDictionary";
 import rpx from "@/utils/rpx";
 import Toast from "@/utils/toast";
 import CantoneseVoiceSettings from "./cantoneseVoiceSettings";
+import { modelDownloadPresentation } from "@/utils/modelDownloadPresentation";
 
 function DownloadProgress() {
     const colors = useColors();
@@ -28,7 +29,7 @@ export default function LearningSetting() {
     const models = useTranslationModels();
     const colors = useColors();
     const completed = models.models.filter(model => model.downloaded).length;
-    const busy = models.batch || models.models.some(model => model.downloading || models.pending[model.language]);
+    const busy = models.batch || models.changingNetwork || models.models.some(model => model.active || model.downloading || models.pending[model.language] || models.controls[model.language]);
     useEffect(() => {
         void TranslationModels.refresh();
         const interval = setInterval(() => {
@@ -41,8 +42,11 @@ export default function LearningSetting() {
         <ThemeText style={styles.note}>英语已内置。英译中需中文模型；日译中需中文和日文模型。每个约几十 MB。</ThemeText>
         <View style={styles.row}>
             <ThemeText>仅 Wi-Fi 下载</ThemeText>
-            <Switch accessibilityLabel="仅 Wi-Fi 下载" disabled={busy} value={models.wifiOnly} onValueChange={value => TranslationModels.setWifiOnly(value)} />
+            <Switch accessibilityLabel="仅 Wi-Fi 下载" disabled={models.changingNetwork} value={models.wifiOnly} onValueChange={value => {
+                void TranslationModels.setWifiOnly(value);
+            }} />
         </View>
+        <ThemeText style={styles.note}>{models.changingNetwork ? "正在取消旧任务并应用新网络设置…" : "切换网络选项会重建未完成任务；系统的大文件限制仍需在下载管理中处理。"}</ThemeText>
         {!models.wifiOnly && <ThemeText style={styles.note}>已允许使用移动数据，下载会消耗流量；系统的大文件限制仍可能需要在系统下载管理中调整。</ThemeText>}
         <ThemeText>{models.loaded ? `已就绪 ${completed} / 2 个模型` : "正在读取模型状态…"}</ThemeText>
         <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 2, now: completed, text: `已就绪 ${completed} / 2` }} style={[styles.bar, { backgroundColor: colors.border }]}>
@@ -56,23 +60,35 @@ export default function LearningSetting() {
             <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
                 void TranslationModels.refresh(); 
             }}><ThemeText>刷新状态</ThemeText></Pressable>
+            <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
+                void LyricDictionary.openModelDownloads().catch(error => Toast.warn(error.message));
+            }}><ThemeText>系统下载管理</ThemeText></Pressable>
         </View>
         {models.models.map(model => {
-            const downloading = !!models.pending[model.language] || model.downloading;
+            const transfer = modelDownloadPresentation(model, !!models.pending[model.language]);
+            const controlling = models.changingNetwork || models.controls[model.language] || model.status === "resetting";
             const error = model.downloaded ? "" : models.failures[model.language] || model.error;
             return <View key={model.language} style={[styles.card, { borderColor: colors.border }]}>
                 <View style={styles.row}>
                     <ThemeText fontWeight="bold" style={{ flex: 1 }}>{model.language === "zh" ? "中文模型（英／日共用）" : "日文模型"}</ThemeText>
-                    <ThemeText>{model.downloaded ? "已下载" : downloading ? "下载中" : error ? "下载失败" : "未下载"}</ThemeText>
+                    <ThemeText>{controlling ? "取消中" : transfer.label}</ThemeText>
                 </View>
-                {downloading && !model.downloaded && <DownloadProgress />}
+                {!model.downloaded && transfer.percent !== undefined && <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: transfer.percent }} style={[styles.bar, { backgroundColor: colors.border }]}><View style={{ height: "100%", width: `${transfer.percent}%`, backgroundColor: colors.primary }} /></View>}
+                {!model.downloaded && transfer.animate && <DownloadProgress />}
+                {!model.downloaded && !!transfer.progressText && <ThemeText>{transfer.progressText}</ThemeText>}
+                {!model.downloaded && !error && !!model.statusMessage && model.status === transfer.status && <ThemeText style={styles.note}>{model.statusMessage}</ThemeText>}
                 {error ? <ThemeText selectable style={styles.error}>{error}</ThemeText> : null}
-                {!model.downloaded && <Pressable accessibilityRole="button" disabled={downloading || models.batch || !models.loaded || !!models.error} onPress={() => {
-                    void TranslationModels.download(model.language); 
-                }} style={[styles.button, { opacity: downloading || models.batch || !models.loaded || !!models.error ? 0.4 : 1 }]}><ThemeText>{downloading ? "正在下载…" : error ? "重试下载" : "下载模型"}</ThemeText></Pressable>}
+                {!model.downloaded && <View style={styles.actions}>
+                    <Pressable accessibilityRole="button" disabled={!!controlling || !models.loaded || !!models.error} onPress={() => {
+                        void TranslationModels.retry(model.language);
+                    }} style={[styles.button, { opacity: controlling || !models.loaded || !!models.error ? 0.4 : 1 }]}><ThemeText>{transfer.active ? "按当前设置重试" : error ? "重试下载" : "下载模型"}</ThemeText></Pressable>
+                    {transfer.active && <Pressable accessibilityRole="button" disabled={!!controlling} style={styles.button} onPress={() => {
+                        void TranslationModels.cancel(model.language);
+                    }}><ThemeText>取消下载</ThemeText></Pressable>}
+                </View>}
             </View>;
         })}
-        <ThemeText style={styles.note}>下载中显示动态进度条；SDK 不提供已下载字节数，因此不显示虚假的百分比。上方进度表示已完成模型数量。若长时间不动，请检查是否能访问 Google 模型下载服务，以及手机剩余存储。</ThemeText>
+        <ThemeText style={styles.note}>从系统下载管理读取真实状态和字节数。总大小已知时显示实际进度；排队、等待网络时不播放下载动画。无法读取时明确标注，不推测进度。重试会清理该模型的未完成任务，不删除已就绪模型。</ThemeText>
         <ThemeText fontSize="title">朗读语音包</ThemeText>
         <ThemeText style={styles.note}>朗读语音与翻译模型不同。英语／日语／普通话／粤语声音请在手机系统的“文字转语音”设置里下载安装。</ThemeText>
         <Pressable accessibilityRole="button" style={styles.button} onPress={() => {

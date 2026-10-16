@@ -1,9 +1,15 @@
 import { NativeModules } from "react-native";
+export type ModelDownloadState = "idle" | "ready" | "running" | "pending" | "preparing" | "waiting_wifi" | "waiting_network" | "retrying" | "paused" | "installing" | "failed" | "unknown" | "resetting" | "cancelled";
 export interface ITranslationModel {
     language: "zh" | "ja";
     downloaded: boolean;
     downloading: boolean;
     error: string;
+    active?: boolean;
+    status?: ModelDownloadState;
+    statusMessage?: string;
+    downloadedBytes?: number;
+    totalBytes?: number;
 }
 
 export interface ILyricDictionaryEntry {
@@ -27,6 +33,8 @@ interface ILyricDictionaryModule {
     translate(text: string, language: string): Promise<string>;
     getTranslationModels(): Promise<ITranslationModel[]>;
     downloadTranslationModel(language: "zh" | "ja", wifiOnly: boolean): Promise<void>;
+    cancelTranslationModel(language: "zh" | "ja"): Promise<void>;
+    openModelDownloads(): Promise<void>;
     openSpeechSettings(): Promise<void>;
 }
 
@@ -35,6 +43,12 @@ const nativeModule = NativeModules.LyricDictionary as
     | undefined;
 
 const LyricDictionary = {
+    cancelTranslationModel(language: "zh" | "ja") {
+        return nativeModule?.cancelTranslationModel(language) ?? Promise.reject(new Error("取消下载不可用，请更新应用"));
+    },
+    openModelDownloads() {
+        return nativeModule?.openModelDownloads() ?? Promise.reject(new Error("无法打开系统下载管理"));
+    },
     getSpeechVoices(language: string) {
         return nativeModule?.getSpeechVoices(language) ?? Promise.reject(new Error("语音检测不可用，请更新应用"));
     },
