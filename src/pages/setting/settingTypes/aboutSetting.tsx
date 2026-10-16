@@ -13,6 +13,7 @@ import LinkText from "@/components/base/linkText";
 import useCheckUpdate from "@/hooks/useCheckUpdate.ts";
 import useOrientation from "@/hooks/useOrientation";
 import Divider from "@/components/base/divider";
+import { RELEASES_URL } from "@/utils/checkUpdate";
 
 export default function AboutSetting() {
     const checkAndShowResult = useCheckUpdate();
@@ -65,6 +66,10 @@ export default function AboutSetting() {
             <ScrollView
                 contentContainerStyle={style.scrollViewContainer}
                 style={style.scrollView}>
+                <ThemeText style={style.content}>
+                    本版本：Maspapa 歌词学习修改版。检查更新和下载均来自自己的仓库：
+                    <LinkText linkTo={RELEASES_URL}>Maspapa/MusicFree 最新版</LinkText>
+                </ThemeText>
                 <ThemeText fontSize="title">开发者的话: </ThemeText>
                 <ThemeText style={style.content}>
                     软件作者是<ThemeText fontWeight="bold">猫头猫</ThemeText>

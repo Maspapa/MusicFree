@@ -14,7 +14,6 @@ export const checkUpdateAndShowResult = (
         if (updateInfo?.needUpdate) {
             const { data } = updateInfo;
             const skipVersion = PersistStatus.get("app.skipVersion");
-            console.log(skipVersion, data);
             if (
                 checkSkip &&
                 skipVersion &&
@@ -33,6 +32,8 @@ export const checkUpdateAndShowResult = (
                 Toast.success(i18n.t("checkUpdate.error.latestVersion"));
             }
         }
+    }).catch(() => {
+        if (showToast) Toast.warn("检查更新失败，请稍后重试（更新源：Maspapa/MusicFree）");
     });
 };
 
