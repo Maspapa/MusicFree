@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
-import { learningLanguage, learningLines, hasChineseTranslation } from "../learningLyrics";
+import { learningLanguage, learningLines, hasChineseTranslation, validLearningLanguage } from "../learningLyrics";
 
 describe("learning lyrics", () => {
     it("keeps lines usable without a synchronized timeline", () => {
@@ -25,5 +25,15 @@ describe("learning lyrics", () => {
         expect(hasChineseTranslation("君が好き")).toBe(false);
         expect(hasChineseTranslation("kimi ga suki")).toBe(false);
         expect(hasChineseTranslation("我喜欢你")).toBe(true);
+    });
+    it("does not infer Cantonese from Chinese characters, but honors a manual Cantonese choice", () => {
+        expect(learningLanguage("今天我寒夜裡看雪飄過")).toBe("zh");
+        expect(learningLanguage("今天我寒夜裡看雪飄過", "yue")).toBe("yue");
+        expect(learningLanguage("唔該晒", "yue")).toBe("yue");
+        expect(learningLanguage("今天 say goodbye", "yue")).toBe("yue");
+        expect(learningLanguage("Hello", "yue")).toBe("en");
+        expect(validLearningLanguage("yue")).toBe("yue");
+        expect(validLearningLanguage("invalid")).toBe("auto");
+        expect(validLearningLanguage("constructor")).toBe("auto");
     });
 });

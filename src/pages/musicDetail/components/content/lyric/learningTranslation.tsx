@@ -16,7 +16,7 @@ export default function LearningTranslation({ text, translation, songLanguage }:
         let cancelled = false;
         setTranslated("");
         setFailed("");
-        if (provided || language === "zh") return;
+        if (provided || language === "zh" || language === "yue") return;
         LyricDictionary.translate(text, language).then(value => {
             if (!cancelled) setTranslated(value);
         }).catch(error => {
@@ -26,7 +26,7 @@ export default function LearningTranslation({ text, translation, songLanguage }:
             cancelled = true;
         };
     }, [text, provided, language, attempt]);
-    if (language === "zh" && !provided) return null;
+    if ((language === "zh" || language === "yue") && !provided) return null;
     return <View style={{ paddingHorizontal: rpx(30), paddingVertical: rpx(10), alignItems: "center" }}>
         <Text style={{ color: "white", fontSize: rpx(26), textAlign: "center" }}>{provided || (translated ? `${translated}（机翻）` : failed || "正在离线翻译…")}</Text>
         {!!failed && <View style={{ flexDirection: "row" }}>

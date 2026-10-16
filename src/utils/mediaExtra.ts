@@ -5,6 +5,7 @@ import getOrCreateMMKV from "@/utils/getOrCreateMMKV";
 import { getMediaUniqueKey } from "@/utils/mediaUtils";
 import { useEffect, useState } from "react";
 import { safeParse } from "./jsonUtil";
+import type { LearningLanguageChoice } from "./learningLyrics";
 
 // Internal Method
 const getPluginStore = (pluginName: string) => {
@@ -13,6 +14,7 @@ const getPluginStore = (pluginName: string) => {
 
 /** 音乐的附加属性 */
 interface IMediaExtraProperties {
+    learningLanguage?: LearningLanguageChoice;
     /** 是否已下载 */
     downloaded?: boolean;
     /** 本地路径 */

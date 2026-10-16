@@ -6,6 +6,7 @@ import TranslationModels, { useTranslationModels } from "@/core/translationModel
 import LyricDictionary from "@/native/lyricDictionary";
 import rpx from "@/utils/rpx";
 import Toast from "@/utils/toast";
+import CantoneseVoiceSettings from "./cantoneseVoiceSettings";
 
 function DownloadProgress() {
     const colors = useColors();
@@ -73,10 +74,11 @@ export default function LearningSetting() {
         })}
         <ThemeText style={styles.note}>下载中显示动态进度条；SDK 不提供已下载字节数，因此不显示虚假的百分比。上方进度表示已完成模型数量。若长时间不动，请检查是否能访问 Google 模型下载服务，以及手机剩余存储。</ThemeText>
         <ThemeText fontSize="title">朗读语音包</ThemeText>
-        <ThemeText style={styles.note}>朗读语音与翻译模型不同。英文／日文发音请在手机系统的“文字转语音”设置里下载安装。</ThemeText>
+        <ThemeText style={styles.note}>朗读语音与翻译模型不同。英语／日语／普通话／粤语声音请在手机系统的“文字转语音”设置里下载安装。</ThemeText>
         <Pressable accessibilityRole="button" style={styles.button} onPress={() => {
             LyricDictionary.openSpeechSettings().catch(error => Toast.warn(error.message)); 
         }}><ThemeText>打开系统语音设置</ThemeText></Pressable>
+        <CantoneseVoiceSettings />
     </ScrollView>;
 }
 const styles = StyleSheet.create({

@@ -7,6 +7,7 @@ export interface ITranslationModel {
 }
 
 export interface ILyricDictionaryEntry {
+    source?: "edict" | "ecdict";
     word: string;
     matchedWord: string;
     phonetic?: string;
@@ -15,6 +16,8 @@ export interface ILyricDictionaryEntry {
 }
 
 interface ILyricDictionaryModule {
+    getSpeechVoices(language: string): Promise<Array<{ name: string; locale: string; network: boolean }>>;
+    tokenizeChinese(text: string): Promise<Array<{ text: string; isWord: boolean }>>;
     lookup(word: string): Promise<ILyricDictionaryEntry | null>;
     speak(word: string): Promise<void>;
     stopSpeaking(): Promise<void>;
@@ -32,6 +35,12 @@ const nativeModule = NativeModules.LyricDictionary as
     | undefined;
 
 const LyricDictionary = {
+    getSpeechVoices(language: string) {
+        return nativeModule?.getSpeechVoices(language) ?? Promise.reject(new Error("语音检测不可用，请更新应用"));
+    },
+    tokenizeChinese(text: string) {
+        return nativeModule?.tokenizeChinese(text) ?? Promise.reject(new Error("中文分词不可用，请更新应用"));
+    },
     getTranslationModels() {
         return nativeModule?.getTranslationModels() ?? Promise.reject(new Error("模型管理不可用，请更新应用"));
     },

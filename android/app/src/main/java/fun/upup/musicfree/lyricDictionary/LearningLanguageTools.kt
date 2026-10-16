@@ -1,6 +1,7 @@
 package `fun`.upup.musicfree.lyricDictionary
 
 import android.database.sqlite.SQLiteDatabase
+import android.icu.text.BreakIterator
 import com.atilika.kuromoji.ipadic.Tokenizer
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -10,6 +11,7 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import java.io.File
+import java.util.Locale
 import java.util.concurrent.Executors
 
 class LearningLanguageTools(private val context: ReactApplicationContext) {
@@ -19,6 +21,28 @@ class LearningLanguageTools(private val context: ReactApplicationContext) {
     private val translators = mutableMapOf<String, Translator>()
     val models = TranslationModels(context)
     @Volatile private var closed = false
+
+    fun tokenizeChinese(text: String, promise: Promise) {
+        executor.execute {
+            try {
+                val iterator = BreakIterator.getWordInstance(Locale.TRADITIONAL_CHINESE)
+                iterator.setText(text)
+                val result = Arguments.createArray()
+                var start = iterator.first()
+                var end = iterator.next()
+                while (end != BreakIterator.DONE) {
+                    val word = text.substring(start, end)
+                    result.pushMap(Arguments.createMap().apply {
+                        putString("text", word)
+                        putBoolean("isWord", word.any { it.isLetterOrDigit() })
+                    })
+                    start = end
+                    end = iterator.next()
+                }
+                promise.resolve(result)
+            } catch (error: Exception) { promise.reject("TOKENIZE_FAILED", error.message, error) }
+        }
+    }
 
     fun tokenize(text: String, promise: Promise) {
         executor.execute {

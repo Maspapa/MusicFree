@@ -57,7 +57,7 @@ export default function WordCard(props: IProps) {
                     ) : (
                         <Text style={styles.empty}>{t("lyric.wordLearning.noEntry")}</Text>
                     )}
-                    {/[\u3040-\u30ff\u3400-\u9fff]/.test(surfaceWord) && <Text style={styles.phonetic} onPress={() => {
+                    {entry?.source === "edict" && <Text style={styles.phonetic} onPress={() => {
                         void Linking.openURL("https://www.edrdg.org/edrdg/licence.html");
                     }}>词典：EDRDG · CC BY-SA 4.0</Text>}
                 </Pressable>

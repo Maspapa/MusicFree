@@ -1,6 +1,6 @@
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 jest.mock("react-native-track-player", () => ({ __esModule: true, default: { pause: jest.fn(async () => undefined), getProgress: jest.fn(async () => ({ position: 11 })), play: jest.fn(), seekTo: jest.fn() } }));
-jest.mock("@/native/lyricDictionary", () => ({ __esModule: true, default: { speakText: jest.fn(async () => undefined), stopSpeaking: jest.fn(async () => undefined), tokenizeJapanese: jest.fn(async () => [{ text: "私", isWord: true, pronunciation: "ワタシ" }, { text: "は", isWord: true, pronunciation: "ワ" }]) } }));
+jest.mock("@/native/lyricDictionary", () => ({ __esModule: true, default: { speakText: jest.fn(async () => undefined), stopSpeaking: jest.fn(async () => undefined), tokenizeChinese: jest.fn(async () => [{ text: "海闊", isWord: true }, { text: "天空", isWord: true }]), tokenizeJapanese: jest.fn(async () => [{ text: "私", isWord: true, pronunciation: "ワタシ" }, { text: "は", isWord: true, pronunciation: "ワ" }]) } }));
 jest.mock("@/utils/toast", () => ({ __esModule: true, default: { warn: jest.fn() } }));
 
 import LearningMode from "@/core/learningMode";
@@ -97,5 +97,33 @@ describe("learning playback", () => {
         expect(speech.speakText).toHaveBeenLastCalledWith("ワタシ", "ja", 0.5);
         jest.advanceTimersByTime(400); await flush();
         expect(speech.speakText).toHaveBeenLastCalledWith("ワ", "ja", 0.5);
+    });
+    it("uses a Cantonese voice and Chinese word segmentation for a manually selected song", async () => {
+        await LearningMode.enter([{ time: 0, index: 0, lrc: "海闊天空" }], 0, "yue"); await flush();
+        expect(speech.tokenizeChinese).toHaveBeenCalledWith("海闊天空");
+        expect(speech.tokenizeJapanese).not.toHaveBeenCalled();
+        expect(speech.speakText).toHaveBeenLastCalledWith("海闊", "yue", 0.5);
+        jest.advanceTimersByTime(400); await flush();
+        expect(speech.speakText).toHaveBeenLastCalledWith("天空", "yue", 0.5);
+        await LearningMode.speakWord("天空");
+        expect(speech.speakText).toHaveBeenLastCalledWith("天空", "yue", 1);
+    });
+    it("cancels the old sequence on language changes and can switch back to automatic", async () => {
+        await LearningMode.enter([{ time: 0, index: 0, lrc: "海闊天空" }], 0, "yue"); await flush();
+        void LearningMode.setLanguage("zh"); await flush();
+        jest.advanceTimersByTime(400); await flush();
+        expect(speech.speakText).not.toHaveBeenCalledWith("天空", "yue", 0.5);
+        expect(speech.speakText).toHaveBeenLastCalledWith("天空", "zh", 0.5);
+        void LearningMode.setLanguage("auto"); await flush();
+        expect(LearningMode.state.languageChoice).toBe("auto");
+        expect(speech.speakText).toHaveBeenLastCalledWith("海闊", "zh", 0.5);
+    });
+    it("shows missing Cantonese voice errors without retrying in Mandarin", async () => {
+        jest.mocked(speech.speakText).mockRejectedValueOnce(new Error("未安装粤语，不会改用普通话"));
+        await LearningMode.enter([{ time: 0, index: 0, lrc: "海闊天空" }], 0, "yue"); await flush();
+        jest.advanceTimersByTime(5000); await flush();
+        expect(speech.speakText).toHaveBeenCalledTimes(1);
+        expect(LearningMode.state.error).toBe("未安装粤语，不会改用普通话");
+        expect(LearningMode.state.speaking).toBe(false);
     });
 });

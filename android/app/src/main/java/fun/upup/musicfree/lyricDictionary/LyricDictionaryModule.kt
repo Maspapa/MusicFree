@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -149,8 +150,15 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
             promise.reject("TTS_INIT_FAILED", "Speech engine did not initialize")
             return
         }
-        val locale = when (language) { "ja" -> Locale.JAPAN; "zh" -> Locale.SIMPLIFIED_CHINESE; else -> Locale.US }
-        if (engine.setLanguage(locale) < TextToSpeech.LANG_AVAILABLE) {
+        val locale = when (language) { "ja" -> Locale.JAPAN; "yue" -> Locale.forLanguageTag("yue-HK"); "zh" -> Locale.SIMPLIFIED_CHINESE; else -> Locale.US }
+        // 不能只用 setLanguage(zh-HK)：部分引擎会退回普通话。必须找到并选中明确的粤语 Voice。
+        if (language == "yue") {
+            val voice = cantoneseVoices(engine).sortedWith(compareBy<Voice> { it.isNetworkConnectionRequired }.thenByDescending { it.quality }).firstOrNull()
+            if (voice == null || engine.setVoice(voice) != TextToSpeech.SUCCESS || engine.voice?.let { isCantonese(it.locale) } != true) {
+                promise.reject("TTS_CANTONESE_UNAVAILABLE", "当前语音引擎没有可用的粤语声音。请在系统文字转语音设置安装粤语／香港中文语音包或切换支持粤语的引擎；不会改用普通话。")
+                return
+            }
+        } else if (engine.setLanguage(locale) < TextToSpeech.LANG_AVAILABLE) {
             promise.reject("TTS_LANGUAGE_UNAVAILABLE", "Install $language voice data in Android text-to-speech settings")
             return
         }
@@ -174,6 +182,32 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
 
     @ReactMethod
     fun tokenizeJapanese(text: String, promise: Promise) = learning.tokenize(text, promise)
+
+    @ReactMethod
+    fun tokenizeChinese(text: String, promise: Promise) = learning.tokenizeChinese(text, promise)
+
+    private fun isCantonese(locale: Locale): Boolean = locale.language == "yue" || (locale.language == "zh" && locale.country == "HK")
+
+    private fun cantoneseVoices(engine: TextToSpeech): List<Voice> = (engine.voices ?: emptySet()).filter {
+        isCantonese(it.locale) && !it.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+    }
+
+    @ReactMethod
+    fun getSpeechVoices(language: String, promise: Promise) {
+        withSpeechEngine(promise) {
+            try {
+                val engine = textToSpeech ?: throw IllegalStateException("语音引擎未就绪")
+                val voices = if (language == "yue") cantoneseVoices(engine) else (engine.voices ?: emptySet()).toList()
+                val result = Arguments.createArray()
+                voices.forEach { voice -> result.pushMap(Arguments.createMap().apply {
+                    putString("name", voice.name)
+                    putString("locale", voice.locale.toLanguageTag())
+                    putBoolean("network", voice.isNetworkConnectionRequired)
+                }) }
+                promise.resolve(result)
+            } catch (error: Exception) { promise.reject("TTS_VOICES_FAILED", error.message, error) }
+        }
+    }
 
     @ReactMethod
     fun lookupJapanese(word: String, promise: Promise) = learning.lookup(word, promise)
@@ -203,14 +237,21 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
             promise.reject("TTS_INVALID_WORD", "No pronounceable word")
             return
         }
+        withSpeechEngine(promise) { performSpeak(word, language, rate.toFloat().coerceIn(0.25f, 2.0f), promise) }
+    }
+
+    private fun withSpeechEngine(promise: Promise, action: () -> Unit) {
+        val safeAction = {
+            try { action() } catch (error: Exception) { promise.reject("TTS_FAILED", error.message, error) }
+        }
         mainHandler.post {
             if (ttsReady) {
-                performSpeak(word, language, rate.toFloat().coerceIn(0.25f, 2.0f), promise)
+                safeAction()
                 return@post
             }
             pendingInitialPromise?.reject("TTS_INTERRUPTED", "Speech interrupted")
             pendingInitialPromise = promise
-            pendingInitialSpeech = { performSpeak(word, language, rate.toFloat().coerceIn(0.25f, 2.0f), promise) }
+            pendingInitialSpeech = safeAction
             if (textToSpeech != null) return@post
             textToSpeech = TextToSpeech(context.applicationContext) { status ->
                 if (status != TextToSpeech.SUCCESS) {

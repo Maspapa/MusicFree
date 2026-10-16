@@ -1,12 +1,12 @@
 import React, { memo, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import LearningTranslation from "./learningTranslation";
-import type { LearningLanguage } from "@/utils/learningLyrics";
+import { learningLanguage, LearningLanguage } from "@/utils/learningLyrics";
+import { tokenizeLearningLine } from "@/utils/learningTokens";
 import rpx from "@/utils/rpx";
 import useColors from "@/hooks/useColors";
 import { fontSizeConst } from "@/constants/uiConst";
 import { tokenizeLyricLine } from "@/utils/lyricWords";
-import LyricDictionary from "@/native/lyricDictionary";
 import type { ILyricToken } from "@/utils/lyricWords";
 
 interface ILyricItemComponentProps {
@@ -32,19 +32,21 @@ interface ILyricItemComponentProps {
 
 function _LyricItemComponent(props: ILyricItemComponentProps) {
     const { light, highlight, text = "", translation, wordLearning, japanese, onWordPress, onLayout, index, fontSize } = props;
-    const [japaneseTokens, setJapaneseTokens] = useState<{ text: string; tokens: ILyricToken[] } | null>(null);
+    const [wordTokens, setWordTokens] = useState<{ text: string; language: LearningLanguage; tokens: ILyricToken[] } | null>(null);
+    const language = props.learningLanguage ? learningLanguage(text, props.learningLanguage) : japanese ? "ja" : "en";
     useEffect(() => {
         let cancelled = false;
-        if (wordLearning && japanese) {
-            LyricDictionary.tokenizeJapanese(text).then(tokens => {
-                if (!cancelled) setJapaneseTokens({ text, tokens });
+        setWordTokens(null);
+        if (wordLearning && language !== "en") {
+            tokenizeLearningLine(text, language).then(tokens => {
+                if (!cancelled) setWordTokens({ text, language, tokens });
             }).catch(() => {});
         }
         return () => {
             cancelled = true;
         };
-    }, [text, wordLearning, japanese]);
-    const tokens = japanese && japaneseTokens?.text === text ? japaneseTokens.tokens : tokenizeLyricLine(text);
+    }, [text, wordLearning, language]);
+    const tokens = language !== "en" && wordTokens?.text === text && wordTokens.language === language ? wordTokens.tokens : tokenizeLyricLine(text);
 
     const colors = useColors();
 

@@ -47,7 +47,7 @@ jobs:
       - name: 检查学习模式
         run: |
           npx tsc --noEmit
-          npx jest --runInBand src/utils/__tests__/learningMode.test.ts src/utils/__tests__/learningLyrics.test.ts src/utils/__tests__/lyricWords.test.ts src/utils/__tests__/checkUpdate.test.ts src/utils/__tests__/translationModels.test.ts
+          npx jest --runInBand src/utils/__tests__/learningMode.test.ts src/utils/__tests__/learningLyrics.test.ts src/utils/__tests__/lyricWords.test.ts src/utils/__tests__/checkUpdate.test.ts src/utils/__tests__/translationModels.test.ts src/utils/__tests__/learningLanguagePreferences.test.ts
 
       - name: 配置发布签名
         # 沿用已发布 APK 的签名，保留覆盖升级能力。

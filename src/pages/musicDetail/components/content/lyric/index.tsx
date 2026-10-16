@@ -65,8 +65,8 @@ export default function Lyric(props: IProps) {
         [fontSizeKey],
     );
     const lyricExtraData = useMemo(
-        () => [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken],
-        [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken],
+        () => [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken, learning.languageChoice],
+        [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken, learning.languageChoice],
     );
 
     const [draggingIndex, setDraggingIndex, setDraggingIndexImmi] =
@@ -239,7 +239,7 @@ export default function Lyric(props: IProps) {
             try {
                 await LearningMode.speakWord(word);
             } catch (error) {
-                if (sequence === speechSequenceRef.current && LearningMode.state.enabled && (error as { code?: string })?.code !== "TTS_INTERRUPTED") Toast.warn("单词发音不可用，请检查英语／日语语音数据");
+                if (sequence === speechSequenceRef.current && LearningMode.state.enabled && (error as { code?: string })?.code !== "TTS_INTERRUPTED") Toast.warn(error instanceof Error ? error.message : "发音不可用，请检查系统对应语言语音包");
             }
             return;
         }
@@ -270,14 +270,18 @@ export default function Lyric(props: IProps) {
         speakWord(word);
         try {
             const japanese = hasJapanese(word) || (LearningMode.state.enabled && LearningMode.language === "ja" && /[\u3400-\u9fff]/.test(word));
+            if (!japanese && /[\u3400-\u9fff]/.test(word)) {
+                if (sequence === lookupSequenceRef.current) setDictionaryEntry({ word, matchedWord: word, definition: "当前仅提供发音，尚未内置粤语／中文词典和粤拼。" });
+                return;
+            }
             const entry = await (japanese ? LyricDictionary.lookupJapanese(word) : LyricDictionary.lookup(word));
             if (sequence === lookupSequenceRef.current) {
-                setDictionaryEntry(entry);
+                setDictionaryEntry(entry && japanese ? { ...entry, source: "edict" } : entry);
             }
             if (japanese) {
                 void LyricDictionary.translate(word, "ja").then(translation => {
                     if (sequence === lookupSequenceRef.current) {
-                        setDictionaryEntry({ ...(entry ?? { word, matchedWord: word }), translation: `${translation}（机翻）` });
+                        setDictionaryEntry({ ...(entry ?? { word, matchedWord: word }), source: "edict", translation: `${translation}（机翻）` });
                     }
                 }).catch(() => {});
             }
@@ -402,7 +406,7 @@ export default function Lyric(props: IProps) {
                                         translation={learning.enabled ? (index === currentLrcItem?.index ? currentLrcItem.translation : item.translation) : showTranslation && hasTranslation ? item.translation : undefined}
                                         wordLearning={!!wordLearning}
                                         activeToken={learning.enabled && currentLrcItem?.index === index ? learning.activeToken : -1}
-                                        japanese={learning.enabled && learningLanguage(item.lrc, LearningMode.language) !== "en"}
+                                        japanese={learning.enabled && learningLanguage(item.lrc, LearningMode.language) === "ja"}
                                         learningLanguage={learning.enabled ? LearningMode.language : undefined}
                                         onWordPress={onWordPress}
                                         fontSize={fontSizeStyle.fontSize}
