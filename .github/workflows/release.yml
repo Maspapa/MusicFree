@@ -86,10 +86,16 @@ jobs:
           # 腾讯云镜像适合本地网络；GitHub Runner 使用 Gradle 官方源更稳定。
           sed -i 's#mirrors.cloud.tencent.com/gradle/#services.gradle.org/distributions/#' android/gradle/wrapper/gradle-wrapper.properties
           cd android
-          ./gradlew :app:testReleaseUnitTest assembleRelease \
-            -PappVersionName="${{ steps.version.outputs.name }}" \
-            -PappVersionCode="${{ steps.version.outputs.code }}" \
-            --build-cache
+          # CI 单独设定堆上限，不增加本地构建的内存占用；测试和 D8 合并分进程运行。
+          gradle_opts=(
+            --no-daemon --max-workers=2 --build-cache
+            "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=768m"
+            "-Pkotlin.compiler.execution.strategy=in-process"
+            "-PappVersionName=${{ steps.version.outputs.name }}"
+            "-PappVersionCode=${{ steps.version.outputs.code }}"
+          )
+          ./gradlew :app:testReleaseUnitTest "${gradle_opts[@]}"
+          ./gradlew assembleRelease "${gradle_opts[@]}"
 
       - name: 整理安装包
         shell: bash
