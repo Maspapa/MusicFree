@@ -3,7 +3,7 @@ jest.mock("axios", () => ({ __esModule: true, default: { get: jest.fn() } }));
 jest.mock("react-native-device-info", () => ({ __esModule: true, default: { getVersion: jest.fn(() => "0.6.2-maspapa.6"), supportedAbis: jest.fn(async () => ["arm64-v8a"]) } }));
 import axios from "axios";
 import DeviceInfo from "react-native-device-info";
-import checkUpdate, { RELEASES_URL } from "../checkUpdate";
+import checkUpdate, { RELEASES_URL, shouldSkipUpdate } from "../checkUpdate";
 function release(version = "0.6.2-maspapa.7") {
     return { tag_name: `v${version}`, draft: false, prerelease: false, body: "更新说明", assets: ["arm64-v8a", "universal"].map(arch => ({ name: `MusicFree-${version}-${arch}.apk`, state: "uploaded", browser_download_url: `https://github.com/Maspapa/MusicFree/releases/download/v${version}/MusicFree-${version}-${arch}.apk` })) };
 }
@@ -14,6 +14,12 @@ beforeEach(() => {
     jest.mocked(axios.get).mockResolvedValue({ data: release() });
 });
 describe("Maspapa APK updates", () => {
+    it("does not let an ignored upstream version suppress fork updates", () => {
+        expect(shouldSkipUpdate("0.6.3", "0.6.2-maspapa.7")).toBe(false);
+        expect(shouldSkipUpdate("invalid", "0.6.2-maspapa.7")).toBe(false);
+        expect(shouldSkipUpdate("0.6.2-maspapa.7", "0.6.2-maspapa.7")).toBe(true);
+        expect(shouldSkipUpdate("0.6.2-maspapa.6", "0.6.2-maspapa.7")).toBe(false);
+    });
     it("checks only our GitHub and selects the ARM64 direct APK link", async () => {
         const result = await checkUpdate();
         expect(axios.get).toHaveBeenCalledWith("https://api.github.com/repos/Maspapa/MusicFree/releases/latest", expect.objectContaining({ timeout: 12000 }));

@@ -1,8 +1,7 @@
 import { showDialog } from "@/components/dialogs/useDialog";
 import PersistStatus from "@/utils/persistStatus";
-import checkUpdate from "@/utils/checkUpdate";
+import checkUpdate, { shouldSkipUpdate } from "@/utils/checkUpdate";
 import Toast from "@/utils/toast";
-import { compare } from "compare-versions";
 import { useEffect } from "react";
 import i18n from "@/core/i18n";
 
@@ -16,8 +15,7 @@ export const checkUpdateAndShowResult = (
             const skipVersion = PersistStatus.get("app.skipVersion");
             if (
                 checkSkip &&
-                skipVersion &&
-                compare(skipVersion, data.version, ">=")
+                shouldSkipUpdate(skipVersion, data.version)
             ) {
                 return;
             }

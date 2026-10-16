@@ -6,6 +6,10 @@ export const RELEASES_URL = "https://github.com/Maspapa/MusicFree/releases/lates
 const RELEASES_API = "https://api.github.com/repos/Maspapa/MusicFree/releases/latest";
 interface IReleaseAsset { name: string; state: string; browser_download_url: string }
 
+export function shouldSkipUpdate(skipped: string | null | undefined, version: string): boolean {
+    return typeof skipped === "string" && /^\d+\.\d+\.\d+-maspapa\.\d+$/.test(skipped) && compare(skipped, version, ">=");
+}
+
 interface IUpdateInfo {
     needUpdate: boolean;
     data: {
