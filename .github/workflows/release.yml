@@ -44,7 +44,13 @@ jobs:
       - name: 安装依赖
         run: npm ci --prefer-offline --no-audit
 
+      - name: 检查学习模式
+        run: |
+          npx tsc --noEmit
+          npx jest --runInBand src/utils/__tests__/learningMode.test.ts src/utils/__tests__/learningLyrics.test.ts src/utils/__tests__/lyricWords.test.ts
+
       - name: 配置发布签名
+        # 沿用已发布 APK 的签名，保留覆盖升级能力。
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}

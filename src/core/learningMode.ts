@@ -53,7 +53,11 @@ async function play() {
             if (sequence !== generation) return;
             if (i < words.length - 1) await new Promise<void>(resolve => {
                 finishWordGap = resolve;
-                wordTimer = setTimeout(() => { wordTimer = undefined; finishWordGap = undefined; resolve(); }, 400);
+                wordTimer = setTimeout(() => {
+                    wordTimer = undefined;
+                    finishWordGap = undefined;
+                    resolve();
+                }, 400);
             });
         }
         if (sequence !== generation) return;
