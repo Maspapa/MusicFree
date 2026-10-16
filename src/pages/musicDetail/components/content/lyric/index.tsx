@@ -22,6 +22,8 @@ import { useI18N } from "@/core/i18n";
 import LyricDictionary, { ILyricDictionaryEntry } from "@/native/lyricDictionary";
 import WordCard from "./wordCard";
 import Toast from "@/utils/toast";
+import LearningMode, { useLearningMode } from "@/core/learningMode";
+import { hasJapanese } from "@/utils/learningLyrics";
 
 const ITEM_HEIGHT = rpx(92);
 
@@ -46,13 +48,16 @@ export default function Lyric(props: IProps) {
 
     const { loading, meta, lyrics, hasTranslation } =
         useLyricState();
-    const currentLrcItem = useCurrentLyricItem();
+    const playingLrcItem = useCurrentLyricItem();
+    const learning = useLearningMode();
+    const currentLrcItem = learning.enabled ? LearningMode.currentLine : playingLrcItem;
     const showTranslation = PersistStatus.useValue(
         "lyric.showTranslation",
         false,
     );
     const fontSizeKey = PersistStatus.useValue("lyric.detailFontSize", 1);
-    const wordLearning = PersistStatus.useValue("lyric.wordLearning", false);
+    const wordLearningSetting = PersistStatus.useValue("lyric.wordLearning", false);
+    const wordLearning = learning.enabled || wordLearningSetting;
     const fontSizeStyle = useMemo(
         () => ({
             fontSize: fontSizeMap[fontSizeKey!],
@@ -60,8 +65,8 @@ export default function Lyric(props: IProps) {
         [fontSizeKey],
     );
     const lyricExtraData = useMemo(
-        () => [currentLrcItem, showTranslation, wordLearning],
-        [currentLrcItem, showTranslation, wordLearning],
+        () => [currentLrcItem, showTranslation, wordLearning, learning.enabled],
+        [currentLrcItem, showTranslation, wordLearning, learning.enabled],
     );
 
     const [draggingIndex, setDraggingIndex, setDraggingIndexImmi] =
@@ -116,7 +121,7 @@ export default function Lyric(props: IProps) {
         if (!listRef.current) {
             return;
         }
-        const currentLyricItem = lyricManager.currentLyricItem;
+        const currentLyricItem = LearningMode.state.enabled ? LearningMode.currentLine : lyricManager.currentLyricItem;
         const currentLyrics = lyricManager.lyricState?.lyrics;
         if (currentLyricItem?.index === -1 || !currentLyricItem) {
             listRef.current?.scrollToIndex({
@@ -151,8 +156,8 @@ export default function Lyric(props: IProps) {
         if (
             lyrics.length === 0 ||
             draggingIndex !== undefined ||
-            (draggingIndex === undefined && musicIsPaused(musicState)) ||
-            lyrics[lyrics.length - 1].time < 1
+            (!learning.enabled && draggingIndex === undefined && musicIsPaused(musicState)) ||
+            (!learning.enabled && lyrics[lyrics.length - 1].time < 1)
         ) {
             return;
         }
@@ -213,6 +218,11 @@ export default function Lyric(props: IProps) {
 
     const onLyricSeekPress = async () => {
         if (draggingIndex !== undefined) {
+            if (LearningMode.state.enabled) {
+                await LearningMode.select(draggingIndex);
+                setDraggingIndexImmi(undefined);
+                return;
+            }
             const time = lyrics[draggingIndex].time + +(meta?.offset ?? 0);
             if (time !== undefined && !isNaN(time)) {
                 await TrackPlayer.seekTo(time);
@@ -224,6 +234,15 @@ export default function Lyric(props: IProps) {
 
     const speakWord = useCallback(async (word: string) => {
         const sequence = ++speechSequenceRef.current;
+        if (LearningMode.state.enabled) {
+            resumeAfterSpeechRef.current = false;
+            try {
+                await LearningMode.speakWord(word);
+            } catch (error) {
+                if (sequence === speechSequenceRef.current && LearningMode.state.enabled && (error as { code?: string })?.code !== "TTS_INTERRUPTED") Toast.warn("单词发音不可用，请检查英语／日语语音数据");
+            }
+            return;
+        }
         const shouldResume = resumeAfterSpeechRef.current || !musicIsPaused(musicState);
         resumeAfterSpeechRef.current = shouldResume;
         try {
@@ -236,7 +255,7 @@ export default function Lyric(props: IProps) {
                 Toast.warn(t("lyric.wordLearning.ttsUnavailable"));
             }
         } finally {
-            if (sequence === speechSequenceRef.current && shouldResume) {
+            if (sequence === speechSequenceRef.current && shouldResume && !LearningMode.state.enabled) {
                 resumeAfterSpeechRef.current = false;
                 await TrackPlayer.play();
             }
@@ -250,9 +269,17 @@ export default function Lyric(props: IProps) {
         setDictionaryLoading(true);
         speakWord(word);
         try {
-            const entry = await LyricDictionary.lookup(word);
+            const japanese = hasJapanese(word) || (LearningMode.state.enabled && LearningMode.language === "ja" && /[\u3400-\u9fff]/.test(word));
+            const entry = await (japanese ? LyricDictionary.lookupJapanese(word) : LyricDictionary.lookup(word));
             if (sequence === lookupSequenceRef.current) {
                 setDictionaryEntry(entry);
+            }
+            if (japanese) {
+                void LyricDictionary.translate(word, "ja").then(translation => {
+                    if (sequence === lookupSequenceRef.current) {
+                        setDictionaryEntry({ ...(entry ?? { word, matchedWord: word }), translation: `${translation}（机翻）` });
+                    }
+                }).catch(() => {});
             }
         } catch {
             if (sequence === lookupSequenceRef.current) {
@@ -271,7 +298,7 @@ export default function Lyric(props: IProps) {
         setSelectedWord("");
         setDictionaryLoading(false);
         LyricDictionary.stopSpeaking().finally(() => {
-            if (resumeAfterSpeechRef.current) {
+            if (resumeAfterSpeechRef.current && !LearningMode.state.enabled) {
                 resumeAfterSpeechRef.current = false;
                 TrackPlayer.play();
             }
@@ -372,8 +399,10 @@ export default function Lyric(props: IProps) {
                                     <LyricItemComponent
                                         index={index}
                                         text={item.lrc}
-                                        translation={showTranslation && hasTranslation ? item.translation : undefined}
+                                        translation={learning.enabled ? (index === currentLrcItem?.index ? currentLrcItem.translation : item.translation) : showTranslation && hasTranslation ? item.translation : undefined}
                                         wordLearning={!!wordLearning}
+                                        japanese={learning.enabled && (LearningMode.language === "ja" || hasJapanese(item.lrc))}
+                                        learningLanguage={learning.enabled ? LearningMode.language : undefined}
                                         onWordPress={onWordPress}
                                         fontSize={fontSizeStyle.fontSize}
                                         onLayout={handleLyricItemLayout}

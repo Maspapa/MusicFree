@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <queries>
+      <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
@@ -40,7 +44,7 @@
               <category android:name="android.intent.category.BROWSABLE" />
               <data android:scheme="musicfree" android:host="app"/>
               <data android:scheme="musicfree" android:host="install"/>
-          </intent-filter>          
+          </intent-filter>
           <!-- 处理音频文件 -->
           <intent-filter>
               <action android:name="android.intent.action.VIEW" />
@@ -119,7 +123,7 @@
               <data android:mimeType="*/*" />
               <data android:pathPattern=".*\\.m4a" />
               <data android:pathPattern=".*\\.M4A" />
-          </intent-filter>          
+          </intent-filter>
           <intent-filter>
               <action android:name="android.intent.action.VIEW" />
               <category android:name="android.intent.category.DEFAULT" />

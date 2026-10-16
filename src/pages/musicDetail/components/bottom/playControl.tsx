@@ -10,10 +10,13 @@ import useOrientation from "@/hooks/useOrientation";
 import delay from "@/utils/delay";
 import { musicIsPaused } from "@/utils/trackUtils";
 import PlaybackNavigation from "@/core/playbackNavigation";
+import LearningMode, { useLearningMode } from "@/core/learningMode";
 
 export default function () {
     const repeatMode = useRepeatMode();
     const musicState = useMusicState();
+    const learning = useLearningMode();
+    const paused = learning.enabled ? !learning.speaking : musicIsPaused(musicState);
 
     const orientation = useOrientation();
 
@@ -31,10 +34,13 @@ export default function () {
                         : null,
                 ]}>
                 <Icon
-                    color={"white"}
+                    color={learning.enabled && learning.loop ? "#66ccff" : "white"}
                     name={repeatModeConst[repeatMode].icon}
                     size={rpx(56)}
                     onPress={async () => {
+                        if (learning.enabled) {
+                            LearningMode.toggleLoop(); return;
+                        }
                         InteractionManager.runAfterInteractions(async () => {
                             await delay(20, false);
                             TrackPlayer.toggleRepeatMode();
@@ -51,9 +57,12 @@ export default function () {
                 />
                 <Icon
                     color={"white"}
-                    name={musicIsPaused(musicState) ? "play" : "pause"}
+                    name={paused ? "play" : "pause"}
                     size={rpx(96)}
                     onPress={() => {
+                        if (learning.enabled) {
+                            void LearningMode.toggle(); return;
+                        }
                         if (musicIsPaused(musicState)) {
                             TrackPlayer.play();
                         } else {

@@ -29,6 +29,10 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
     private val utterancePromises = ConcurrentHashMap<String, Promise>()
     @Volatile private var database: SQLiteDatabase? = null
     @Volatile private var textToSpeech: TextToSpeech? = null
+    private var ttsReady = false
+    private var pendingInitialSpeech: (() -> Unit)? = null
+    private var pendingInitialPromise: Promise? = null
+    private val learning = LearningLanguageTools(context)
 
     override fun getName() = "LyricDictionary"
 
@@ -138,16 +142,19 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
         }
     }
 
-    private fun performSpeak(word: String, promise: Promise) {
+    private fun performSpeak(word: String, language: String, rate: Float, promise: Promise) {
         val engine = textToSpeech
         if (engine == null) {
             promise.reject("TTS_INIT_FAILED", "Speech engine did not initialize")
             return
         }
-        if (engine.setLanguage(Locale.US) < TextToSpeech.LANG_AVAILABLE) {
-            promise.reject("TTS_LANGUAGE_UNAVAILABLE", "English speech data is unavailable")
+        val locale = when (language) { "ja" -> Locale.JAPAN; "zh" -> Locale.SIMPLIFIED_CHINESE; else -> Locale.US }
+        if (engine.setLanguage(locale) < TextToSpeech.LANG_AVAILABLE) {
+            promise.reject("TTS_LANGUAGE_UNAVAILABLE", "Install $language voice data in Android text-to-speech settings")
             return
         }
+        engine.setSpeechRate(rate)
+        engine.setPitch(1.0f)
         utterancePromises.entries.forEach { (_, pending) -> pending.reject("TTS_INTERRUPTED", "Speech interrupted") }
         utterancePromises.clear()
         val utteranceId = UUID.randomUUID().toString()
@@ -161,21 +168,42 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
     @ReactMethod
     fun speak(rawWord: String, promise: Promise) {
         val word = normalize(rawWord)
+        speakText(word, "en", 1.0, promise)
+    }
+
+    @ReactMethod
+    fun tokenizeJapanese(text: String, promise: Promise) = learning.tokenize(text, promise)
+
+    @ReactMethod
+    fun lookupJapanese(word: String, promise: Promise) = learning.lookup(word, promise)
+
+    @ReactMethod
+    fun translate(text: String, language: String, promise: Promise) = learning.translate(text, language, promise)
+
+    @ReactMethod
+    fun speakText(word: String, language: String, rate: Double, promise: Promise) {
         if (word.isBlank()) {
             promise.reject("TTS_INVALID_WORD", "No pronounceable word")
             return
         }
         mainHandler.post {
-            if (textToSpeech != null) {
-                performSpeak(word, promise)
+            if (ttsReady) {
+                performSpeak(word, language, rate.toFloat().coerceIn(0.25f, 2.0f), promise)
                 return@post
             }
+            pendingInitialPromise?.reject("TTS_INTERRUPTED", "Speech interrupted")
+            pendingInitialPromise = promise
+            pendingInitialSpeech = { performSpeak(word, language, rate.toFloat().coerceIn(0.25f, 2.0f), promise) }
+            if (textToSpeech != null) return@post
             textToSpeech = TextToSpeech(context.applicationContext) { status ->
                 if (status != TextToSpeech.SUCCESS) {
                     textToSpeech = null
-                    promise.reject("TTS_INIT_FAILED", "Speech engine initialization failed")
+                    pendingInitialPromise?.reject("TTS_INIT_FAILED", "Speech engine initialization failed")
+                    pendingInitialPromise = null
+                    pendingInitialSpeech = null
                     return@TextToSpeech
                 }
+                ttsReady = true
                 textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) = Unit
                     override fun onDone(utteranceId: String?) {
@@ -188,8 +216,14 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
                         }
                     }
                     override fun onError(utteranceId: String?, errorCode: Int) = onError(utteranceId)
+                    override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                        utteranceId?.let { utterancePromises.remove(it)?.reject("TTS_INTERRUPTED", "Speech interrupted") }
+                    }
                 })
-                performSpeak(word, promise)
+                val start = pendingInitialSpeech
+                pendingInitialSpeech = null
+                pendingInitialPromise = null
+                start?.invoke()
             }
         }
     }
@@ -198,6 +232,9 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
     fun stopSpeaking(promise: Promise) {
         mainHandler.post {
             textToSpeech?.stop()
+            pendingInitialPromise?.reject("TTS_INTERRUPTED", "Speech interrupted")
+            pendingInitialPromise = null
+            pendingInitialSpeech = null
             utterancePromises.entries.forEach { (_, pending) -> pending.reject("TTS_INTERRUPTED", "Speech interrupted") }
             utterancePromises.clear()
             promise.resolve(null)
@@ -205,6 +242,7 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
     }
 
     override fun invalidate() {
+        learning.close()
         database?.close()
         database = null
         executor.shutdownNow()

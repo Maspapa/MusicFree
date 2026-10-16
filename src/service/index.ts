@@ -4,6 +4,7 @@ import TrackPlayer from "@/core/trackPlayer";
 import { musicIsPaused } from "@/utils/trackUtils";
 import PersistStatus from "@/utils/persistStatus";
 import PlaybackNavigation from "@/core/playbackNavigation";
+import LearningMode from "@/core/learningMode";
 
 let resumeState: State | null;
 module.exports = async function () {
@@ -61,10 +62,12 @@ module.exports = async function () {
     });
 
     RNTrackPlayer.addEventListener(Event.RemoteStop, async () => {
+        if (LearningMode.state.enabled) await LearningMode.pause();
         RNTrackPlayer.stop();
     });
 
     RNTrackPlayer.addEventListener(Event.RemoteSeek, async evt => {
+        if (LearningMode.state.enabled) return;
         TrackPlayer.seekTo(evt.position);
     });
 };

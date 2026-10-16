@@ -11,13 +11,15 @@ import TrackPlayer, { useCurrentMusic, useMusicState, useProgress } from "@/core
 import { musicIsPaused } from "@/utils/trackUtils";
 import MusicInfo from "./musicInfo";
 import Icon from "@/components/base/icon.tsx";
+import LearningMode, { useLearningMode } from "@/core/learningMode";
 
 function CircularPlayBtn() {
+    const learning = useLearningMode();
     const progress = useProgress();
     const musicState = useMusicState();
     const colors = useColors();
 
-    const isPaused = musicIsPaused(musicState);
+    const isPaused = learning.enabled ? !learning.speaking : musicIsPaused(musicState);
 
     return (
         <CircularProgressBase
@@ -45,6 +47,9 @@ function CircularPlayBtn() {
                 }}
                 color={colors.musicBarText}
                 onPress={async () => {
+                    if (learning.enabled) {
+                        await LearningMode.toggle(); return;
+                    }
                     if (isPaused) {
                         await TrackPlayer.play();
                     } else {

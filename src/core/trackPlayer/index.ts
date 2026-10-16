@@ -15,6 +15,7 @@ import {
 } from "@/utils/mediaUtils";
 import Network from "@/utils/network";
 import PersistStatus from "@/utils/persistStatus";
+import LearningMode from "@/core/learningMode";
 import { getQualityOrder } from "@/utils/qualities";
 import { musicIsPaused } from "@/utils/trackUtils";
 import EventEmitter from "eventemitter3";
@@ -398,6 +399,13 @@ class TrackPlayer extends EventEmitter<{
         musicItem?: IMusic.IMusicItem | null,
         forcePlay?: boolean,
     ): Promise<void> {
+        if (LearningMode.state.enabled) {
+            if (!musicItem || this.isCurrentMusic(musicItem)) {
+                await LearningMode.play();
+                return;
+            }
+            await LearningMode.exit();
+        }
         try {
             // 如果不传参，默认是播放当前音乐
             if (!musicItem) {
@@ -445,7 +453,7 @@ class TrackPlayer extends EventEmitter<{
                     if (currentState === State.Stopped) {
                         await this.setTrackSource(currentTrack);
                     }
-                    if (currentState !== State.Playing) {
+                    if (currentState !== State.Playing && !LearningMode.state.enabled) {
                         // 2.1.2 恢复播放
                         await ReactNativeTrackPlayer.play();
                     }
@@ -625,6 +633,7 @@ class TrackPlayer extends EventEmitter<{
     }
 
     async pause(): Promise<void> {
+        if (LearningMode.state.enabled) await LearningMode.pause();
         await ReactNativeTrackPlayer.pause();
     }
 
@@ -805,7 +814,7 @@ class TrackPlayer extends EventEmitter<{
         await ReactNativeTrackPlayer.setQueue([clonedTrack, this.getFakeNextTrack()]);
         PersistStatus.set("music.musicItem", track as IMusic.IMusicItem);
         PersistStatus.set("music.progress", 0);
-        if (autoPlay) {
+        if (autoPlay && !LearningMode.state.enabled) {
             await ReactNativeTrackPlayer.play();
         }
     }

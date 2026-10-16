@@ -1,6 +1,7 @@
 import React from "react";
 import {
     ActivityIndicator,
+    Linking,
     Modal,
     Pressable,
     StyleSheet,
@@ -49,13 +50,16 @@ export default function WordCard(props: IProps) {
                         <ActivityIndicator color={colors.primary} style={styles.loading} />
                     ) : entry ? (
                         <>
-                            {entry.phonetic ? <Text style={styles.phonetic}>/{entry.phonetic}/</Text> : null}
+                            {entry.phonetic ? <Text style={styles.phonetic}>{/[\u3040-\u30ff]/.test(entry.phonetic) ? entry.phonetic : `/${entry.phonetic}/`}</Text> : null}
                             {entry.translation ? <Text style={styles.translation}>{entry.translation}</Text> : null}
                             {entry.definition ? <Text style={styles.definition}>{entry.definition}</Text> : null}
                         </>
                     ) : (
                         <Text style={styles.empty}>{t("lyric.wordLearning.noEntry")}</Text>
                     )}
+                    {/[\u3040-\u30ff\u3400-\u9fff]/.test(surfaceWord) && <Text style={styles.phonetic} onPress={() => {
+                        void Linking.openURL("https://www.edrdg.org/edrdg/licence.html");
+                    }}>词典：EDRDG · CC BY-SA 4.0</Text>}
                 </Pressable>
             </Pressable>
         </Modal>
