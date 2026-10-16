@@ -4,6 +4,7 @@ import BackupSetting from "./backupSetting";
 import BasicSetting from "./basicSetting";
 import PluginSetting from "./pluginSetting";
 import ThemeSetting from "./themeSetting";
+import LearningSetting from "./learningSetting";
 
 const settingTypes: Record<
     string,
@@ -18,6 +19,11 @@ const settingTypes: Record<
         title: "基本设置",
         i18nKey: "sidebar.basicSettings",
         component: BasicSetting,
+    },
+    learning: {
+        title: "学习模型",
+        i18nKey: "sidebar.learningModels",
+        component: LearningSetting,
     },
     plugin: {
         title: "插件管理",

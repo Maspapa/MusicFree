@@ -1,6 +1,7 @@
 package `fun`.upup.musicfree.lyricDictionary
 
 import android.database.sqlite.SQLiteDatabase
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -179,6 +180,22 @@ class LyricDictionaryModule(private val context: ReactApplicationContext) :
 
     @ReactMethod
     fun translate(text: String, language: String, promise: Promise) = learning.translate(text, language, promise)
+
+    @ReactMethod
+    fun getTranslationModels(promise: Promise) = learning.models.snapshot(promise)
+
+    @ReactMethod
+    fun downloadTranslationModel(language: String, wifiOnly: Boolean, promise: Promise) = learning.models.download(language, wifiOnly, promise)
+
+    @ReactMethod
+    fun openSpeechSettings(promise: Promise) {
+        try {
+            context.startActivity(Intent("com.android.settings.TTS_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            promise.resolve(null)
+        } catch (error: Exception) {
+            promise.reject("SPEECH_SETTINGS_UNAVAILABLE", "无法打开文字转语音设置，请手动在系统设置搜索文字转语音", error)
+        }
+    }
 
     @ReactMethod
     fun speakText(word: String, language: String, rate: Double, promise: Promise) {

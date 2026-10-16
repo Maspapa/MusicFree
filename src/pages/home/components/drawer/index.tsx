@@ -38,6 +38,11 @@ function HomeDrawer(props: any) {
 
     const basicSetting: ISettingOptions[] = [
         {
+            icon: "circle-stack",
+            title: t("sidebar.learningModels"),
+            onPress: () => navigateToSetting("learning"),
+        },
+        {
             icon: "cog-8-tooth",
             title: t("sidebar.basicSettings"),
             onPress: () => {

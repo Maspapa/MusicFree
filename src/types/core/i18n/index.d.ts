@@ -50,6 +50,7 @@ export interface ILanguageData {
     "sidebar.backupAndResume": string; // 备份与恢复
     "sidebar.permissionManagement": string; // 权限管理
     "sidebar.checkUpdate": string; // 检查更新
+    "sidebar.learningModels": string;
     "sidebar.currentVersion": string; // 当前版本
     "sidebar.backToDesktop": string; // 返回桌面
     "sidebar.exitApp": string; // 退出应用

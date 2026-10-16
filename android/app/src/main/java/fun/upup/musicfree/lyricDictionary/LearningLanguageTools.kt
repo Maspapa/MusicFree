@@ -5,7 +5,6 @@ import com.atilika.kuromoji.ipadic.Tokenizer
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
-import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
@@ -18,6 +17,7 @@ class LearningLanguageTools(private val context: ReactApplicationContext) {
     private val tokenizer by lazy { Tokenizer() }
     private var dictionary: SQLiteDatabase? = null
     private val translators = mutableMapOf<String, Translator>()
+    val models = TranslationModels(context)
     @Volatile private var closed = false
 
     fun tokenize(text: String, promise: Promise) {
@@ -85,8 +85,8 @@ class LearningLanguageTools(private val context: ReactApplicationContext) {
         val cache = context.getSharedPreferences("learning_translations_v1", 0)
         val key = java.security.MessageDigest.getInstance("SHA-256").digest("$source:$text".toByteArray()).joinToString("") { "%02x".format(it) }
         cache.getString(key, null)?.let { promise.resolve(it); return }
-        // Model downloads stay on Wi-Fi; translated lyric text stays on the phone.
-        translator.downloadModelIfNeeded(DownloadConditions.Builder().requireWifi().build())
+        // 模型只在设置页显式下载，不在歌词页偷偷下载，也不吞掉具体失败原因。
+        models.requireInstalled(source)
             .continueWithTask { task ->
                 if (!task.isSuccessful) throw task.exception ?: Exception("Model download failed")
                 if (closed) throw Exception("Translator closed")
@@ -94,11 +94,12 @@ class LearningLanguageTools(private val context: ReactApplicationContext) {
             }.addOnSuccessListener { translated ->
                 cache.edit().putString(key, translated).apply()
                 promise.resolve(translated)
-            }.addOnFailureListener { error -> promise.reject("TRANSLATION_FAILED", "Connect to Wi-Fi to download translation models, then retry", error) }
+            }.addOnFailureListener { error -> promise.reject("TRANSLATION_FAILED", error.cause?.message ?: error.message ?: "翻译失败，请检查模型状态", error) }
     }
 
     @Synchronized fun close() {
         closed = true
+        models.close()
         translators.values.forEach { it.close() }
         translators.clear()
         executor.execute { dictionary?.close(); dictionary = null }

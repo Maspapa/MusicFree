@@ -1,4 +1,10 @@
 import { NativeModules } from "react-native";
+export interface ITranslationModel {
+    language: "zh" | "ja";
+    downloaded: boolean;
+    downloading: boolean;
+    error: string;
+}
 
 export interface ILyricDictionaryEntry {
     word: string;
@@ -16,6 +22,9 @@ interface ILyricDictionaryModule {
     tokenizeJapanese(text: string): Promise<Array<{ text: string; isWord: boolean; pronunciation?: string }>>;
     lookupJapanese(word: string): Promise<ILyricDictionaryEntry | null>;
     translate(text: string, language: string): Promise<string>;
+    getTranslationModels(): Promise<ITranslationModel[]>;
+    downloadTranslationModel(language: "zh" | "ja", wifiOnly: boolean): Promise<void>;
+    openSpeechSettings(): Promise<void>;
 }
 
 const nativeModule = NativeModules.LyricDictionary as
@@ -23,6 +32,15 @@ const nativeModule = NativeModules.LyricDictionary as
     | undefined;
 
 const LyricDictionary = {
+    getTranslationModels() {
+        return nativeModule?.getTranslationModels() ?? Promise.reject(new Error("模型管理不可用，请更新应用"));
+    },
+    downloadTranslationModel(language: "zh" | "ja", wifiOnly: boolean) {
+        return nativeModule?.downloadTranslationModel(language, wifiOnly) ?? Promise.reject(new Error("模型管理不可用，请更新应用"));
+    },
+    openSpeechSettings() {
+        return nativeModule?.openSpeechSettings() ?? Promise.reject(new Error("系统语音设置不可用"));
+    },
     speakText(text: string, language: string, rate = 0.5) {
         return nativeModule?.speakText(text, language, rate) ?? Promise.reject(new Error("Speech module unavailable"));
     },
