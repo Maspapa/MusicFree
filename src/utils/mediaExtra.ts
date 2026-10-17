@@ -205,7 +205,7 @@ function useMediaExtra(mediaItem: ICommon.IMediaBase) {
 }
 
 
-function useMediaExtraProperty<K extends keyof IMediaExtraProperties>(mediaItem: ICommon.IMediaBase, key: K) {
+function useMediaExtraProperty<K extends keyof IMediaExtraProperties>(mediaItem: ICommon.IMediaBase | null, key: K) {
     const [mediaExtraPropertyState, setMediaExtraPropertyState] = useState<IMediaExtraProperties[K] | null>(getMediaExtraProperty(mediaItem, key));
 
     useEffect(() => {
@@ -230,6 +230,7 @@ function useMediaExtraProperty<K extends keyof IMediaExtraProperties>(mediaItem:
 
 
         return () => {
+            if (!mediaItem) return;
             const mediaKey = getMediaUniqueKey(mediaItem);
             if (observerCallbacks.has(mediaKey)) {
                 const callbacks = observerCallbacks.get(mediaKey);
@@ -241,7 +242,7 @@ function useMediaExtraProperty<K extends keyof IMediaExtraProperties>(mediaItem:
                 }
             }
         };
-    }, [mediaItem]);
+    }, [mediaItem, key]);
 
     return mediaExtraPropertyState;
 }

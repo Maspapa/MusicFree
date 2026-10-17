@@ -6,7 +6,7 @@ import { tokenizeLearningLine } from "@/utils/learningTokens";
 import rpx from "@/utils/rpx";
 import useColors from "@/hooks/useColors";
 import { fontSizeConst } from "@/constants/uiConst";
-import { tokenizeLyricLine } from "@/utils/lyricWords";
+import { tokenizeLyricLine, tokenizeLyricFallback } from "@/utils/lyricWords";
 import type { ILyricToken } from "@/utils/lyricWords";
 
 interface ILyricItemComponentProps {
@@ -22,31 +22,37 @@ interface ILyricItemComponentProps {
     fontSize?: number;
     translation?: string;
     wordLearning?: boolean;
-    japanese?: boolean;
+    wordLanguage?: LearningLanguage;
     learningLanguage?: LearningLanguage;
     activeToken?: number;
-    onWordPress?: (word: string) => void;
+    onWordPress?: (word: string, language: LearningLanguage) => void;
 
     onLayout?: (index: number, height: number) => void;
 }
 
 function _LyricItemComponent(props: ILyricItemComponentProps) {
-    const { light, highlight, text = "", translation, wordLearning, japanese, onWordPress, onLayout, index, fontSize } = props;
+    const { light, highlight, text = "", translation, wordLearning, onWordPress, onLayout, index, fontSize } = props;
     const [wordTokens, setWordTokens] = useState<{ text: string; language: LearningLanguage; tokens: ILyricToken[] } | null>(null);
-    const language = props.learningLanguage ? learningLanguage(text, props.learningLanguage) : japanese ? "ja" : "en";
+    const [tokenError, setTokenError] = useState(false);
+    const [retry, setRetry] = useState(0);
+    const language = learningLanguage(text, props.wordLanguage ?? props.learningLanguage);
     useEffect(() => {
         let cancelled = false;
         setWordTokens(null);
+        setTokenError(false);
         if (wordLearning && language !== "en") {
             tokenizeLearningLine(text, language).then(tokens => {
+                if (!tokens.length && text.trim()) throw new Error("分词结果为空");
                 if (!cancelled) setWordTokens({ text, language, tokens });
-            }).catch(() => {});
+            }).catch(() => {
+                if (!cancelled) setTokenError(true);
+            });
         }
         return () => {
             cancelled = true;
         };
-    }, [text, wordLearning, language]);
-    const tokens = language !== "en" && wordTokens?.text === text && wordTokens.language === language ? wordTokens.tokens : tokenizeLyricLine(text);
+    }, [text, wordLearning, language, retry]);
+    const tokens = language === "en" ? tokenizeLyricLine(text) : wordTokens?.text === text && wordTokens.language === language ? wordTokens.tokens : tokenizeLyricFallback(text);
 
     const colors = useColors();
 
@@ -78,13 +84,14 @@ function _LyricItemComponent(props: ILyricItemComponentProps) {
                         <Text
                             key={`${tokenIndex}-${token.text}`}
                             style={[lyricStyles.clickableWord, props.activeToken === tokenIndex ? lyricStyles.speakingWord : null]}
-                            onPress={() => onWordPress?.(token.text)}>
+                            onPress={() => onWordPress?.(token.text, learningLanguage(token.text, language))}>
                             {token.text}
                         </Text>
                     ) : token.text)
                     : text}
                 {translation && !(highlight && props.learningLanguage) ? <Text style={lyricStyles.translation}>{`\n${translation}`}</Text> : null}
             </Text>
+            {wordLearning && highlight && tokenError && <Text style={lyricStyles.tokenError} onPress={() => setRetry(value => value + 1)}>分词不可用，暂按文字片段点选 · 点击重试</Text>}
             {highlight && props.learningLanguage && <LearningTranslation text={text} translation={translation} songLanguage={props.learningLanguage} />}
         </View>
     );
@@ -100,7 +107,7 @@ const LyricItemComponent = memo(
         prev.fontSize === curr.fontSize &&
         prev.translation === curr.translation &&
         prev.wordLearning === curr.wordLearning &&
-        prev.japanese === curr.japanese &&
+        prev.wordLanguage === curr.wordLanguage &&
         prev.learningLanguage === curr.learningLanguage &&
         prev.activeToken === curr.activeToken &&
         prev.onWordPress === curr.onWordPress,
@@ -109,6 +116,7 @@ const LyricItemComponent = memo(
 export default LyricItemComponent;
 
 const lyricStyles = StyleSheet.create({
+    tokenError: { color: "#ffcf8a", textAlign: "center", fontSize: rpx(22), paddingHorizontal: rpx(24) },
     highlightItem: {
         opacity: 1,
     },

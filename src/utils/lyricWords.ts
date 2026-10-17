@@ -6,6 +6,13 @@ export interface ILyricToken {
 
 const ENGLISH_WORD = /[A-Za-z]+(?:[’'][A-Za-z]+)*(?:-[A-Za-z]+)*/g;
 
+/** 分词尚未就绪时仍可点选文字片段；不把它冒充为准确的日语分词。 */
+export function tokenizeLyricFallback(line: string): ILyricToken[] {
+    return line.split(/([A-Za-z]+(?:[’'-][A-Za-z]+)*|[\u3400-\u9fff\u3040-\u30ff]+)/g)
+        .filter(Boolean)
+        .map(text => ({ text, isWord: /[A-Za-z\u3400-\u9fff\u3040-\u30ff]/.test(text) }));
+}
+
 export function tokenizeLyricLine(line: string): ILyricToken[] {
     const result: ILyricToken[] = [];
     let offset = 0;

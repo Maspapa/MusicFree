@@ -19,6 +19,9 @@ interface IProps {
     surfaceWord: string;
     entry: ILyricDictionaryEntry | null;
     loading: boolean;
+    dictionaryError?: string;
+    speechError?: string;
+    onRetry: () => void;
     onSpeak: () => void;
     onClose: () => void;
 }
@@ -54,9 +57,12 @@ export default function WordCard(props: IProps) {
                             {entry.translation ? <Text style={styles.translation}>{entry.translation}</Text> : null}
                             {entry.definition ? <Text style={styles.definition}>{entry.definition}</Text> : null}
                         </>
-                    ) : (
+                    ) : !props.dictionaryError ? (
                         <Text style={styles.empty}>{t("lyric.wordLearning.noEntry")}</Text>
-                    )}
+                    ) : null}
+                    {!!props.dictionaryError && <Text style={styles.error}>{props.dictionaryError}</Text>}
+                    {!!props.dictionaryError && <Text style={styles.phonetic} onPress={props.onRetry}>重试查询</Text>}
+                    {!!props.speechError && <Text style={styles.error}>发音失败：{props.speechError}。请检查系统语音引擎及对应语言语音包；释义不受影响。</Text>}
                     {entry?.source === "edict" && <Text style={styles.phonetic} onPress={() => {
                         void Linking.openURL("https://www.edrdg.org/edrdg/licence.html");
                     }}>词典：EDRDG · CC BY-SA 4.0</Text>}
@@ -67,6 +73,7 @@ export default function WordCard(props: IProps) {
 }
 
 const styles = StyleSheet.create({
+    error: { color: "#9a4e00", fontSize: rpx(23), lineHeight: rpx(34), marginTop: rpx(16) },
     backdrop: {
         flex: 1,
         justifyContent: "flex-end",

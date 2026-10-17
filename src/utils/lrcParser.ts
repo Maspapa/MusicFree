@@ -1,3 +1,5 @@
+import { alignLyricTranslations } from "./alignLyricTranslations";
+
 const timeReg = /\[[\d:.]+\]/g;
 const metaReg = /\[(.+):(.+)\]/g;
 
@@ -51,6 +53,7 @@ export default class LyricParser {
         }
 
         const { lrcItems, meta } = this.parseLyricImpl(raw);
+        const sourceOffset = meta.offset ?? 0;
         if (this.extra.offset) {
             meta.offset = (meta.offset ?? 0) + this.extra.offset;
         }
@@ -58,28 +61,16 @@ export default class LyricParser {
         this.lrcItems = lrcItems;
 
         if (translation) {
-            this.hasTranslation = true;
-            const transLrcItems = this.parseLyricImpl(translation).lrcItems;
-
-            // 2 pointer
-            let p1 = 0;
-            let p2 = 0;
-
-            while (p1 < this.lrcItems.length) {
-                const lrcItem = this.lrcItems[p1];
-                while (
-                    transLrcItems[p2].time < lrcItem.time &&
-                    p2 < transLrcItems.length - 1
-                ) {
-                    ++p2;
-                }
-                if (transLrcItems[p2].time === lrcItem.time) {
-                    lrcItem.translation = transLrcItems[p2].lrc;
-                } else {
-                    lrcItem.translation = "";
-                }
-
-                ++p1;
+            const translated = this.parseLyricImpl(translation);
+            const rawTimed = /\[[\d:.]+\]/.test(raw);
+            const translationTimed = /\[[\d:.]+\]/.test(translation);
+            if (rawTimed && translationTimed) {
+                this.hasTranslation = alignLyricTranslations(lrcItems, translated.lrcItems, sourceOffset, translated.meta.offset ?? 0);
+            } else if (!rawTimed && !translationTimed && lrcItems.length === translated.lrcItems.length) {
+                lrcItems.forEach((item, index) => {
+                    item.translation = translated.lrcItems[index].lrc;
+                });
+                this.hasTranslation = lrcItems.some(item => !!item.translation?.trim());
             }
         }
     }
@@ -231,7 +222,7 @@ export default class LyricParser {
             item.index = index;
         });
         if (lrcItems.length === 0 && raw.length) {
-            lrcItems = raw.split("\n").map((_, index) => ({
+            lrcItems = raw.split("\n").filter(line => !/^\[\w+:[^\]]*\]$/.test(line.trim())).map((_, index) => ({
                 time: 0,
                 lrc: _,
                 index,

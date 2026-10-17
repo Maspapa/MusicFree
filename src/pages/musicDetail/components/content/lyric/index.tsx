@@ -16,14 +16,14 @@ import PersistStatus from "@/utils/persistStatus";
 import LyricOperations from "./lyricOperations";
 import { IParsedLrcItem } from "@/utils/lrcParser";
 import { IconButtonWithGesture } from "@/components/base/iconButton.tsx";
-import { getMediaExtraProperty } from "@/utils/mediaExtra";
+import { getMediaExtraProperty, useMediaExtraProperty } from "@/utils/mediaExtra";
 import lyricManager, { useCurrentLyricItem, useLyricState } from "@/core/lyricManager";
 import { useI18N } from "@/core/i18n";
 import LyricDictionary, { ILyricDictionaryEntry } from "@/native/lyricDictionary";
 import WordCard from "./wordCard";
 import Toast from "@/utils/toast";
 import LearningMode, { useLearningMode } from "@/core/learningMode";
-import { hasJapanese, learningLanguage } from "@/utils/learningLyrics";
+import { hasJapanese, LearningLanguage, validLearningLanguage } from "@/utils/learningLyrics";
 
 const ITEM_HEIGHT = rpx(92);
 
@@ -58,6 +58,9 @@ export default function Lyric(props: IProps) {
     const fontSizeKey = PersistStatus.useValue("lyric.detailFontSize", 1);
     const wordLearningSetting = PersistStatus.useValue("lyric.wordLearning", false);
     const wordLearning = learning.enabled || wordLearningSetting;
+    const currentMusicItem = useCurrentMusic();
+    const savedLanguage = validLearningLanguage(useMediaExtraProperty(currentMusicItem, "learningLanguage"));
+    const wordLanguage: LearningLanguage = savedLanguage === "auto" ? (lyrics.some(item => hasJapanese(item.lrc)) ? "ja" : "en") : savedLanguage;
     const fontSizeStyle = useMemo(
         () => ({
             fontSize: fontSizeMap[fontSizeKey!],
@@ -65,8 +68,8 @@ export default function Lyric(props: IProps) {
         [fontSizeKey],
     );
     const lyricExtraData = useMemo(
-        () => [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken, learning.languageChoice],
-        [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken, learning.languageChoice],
+        () => [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken, learning.languageChoice, wordLanguage],
+        [currentLrcItem, showTranslation, wordLearning, learning.enabled, learning.activeToken, learning.languageChoice, wordLanguage],
     );
 
     const [draggingIndex, setDraggingIndex, setDraggingIndexImmi] =
@@ -78,13 +81,15 @@ export default function Lyric(props: IProps) {
     const [selectedWord, setSelectedWord] = useState("");
     const [dictionaryEntry, setDictionaryEntry] = useState<ILyricDictionaryEntry | null>(null);
     const [dictionaryLoading, setDictionaryLoading] = useState(false);
+    const [selectedLanguage, setSelectedLanguage] = useState<LearningLanguage>("en");
+    const [dictionaryError, setDictionaryError] = useState("");
+    const [speechError, setSpeechError] = useState("");
     const lookupSequenceRef = useRef(0);
     const speechSequenceRef = useRef(0);
     const resumeAfterSpeechRef = useRef(false);
 
     const listRef = useRef<FlatList<IParsedLrcItem> | null>();
 
-    const currentMusicItem = useCurrentMusic();
     const associateMusicItem = getMediaExtraProperty(currentMusicItem, "associatedLrc");
 
     // 是否展示拖拽
@@ -232,14 +237,19 @@ export default function Lyric(props: IProps) {
         }
     };
 
-    const speakWord = useCallback(async (word: string) => {
+    const speakWord = useCallback(async (word: string, language: LearningLanguage) => {
         const sequence = ++speechSequenceRef.current;
+        setSpeechError("");
         if (LearningMode.state.enabled) {
             resumeAfterSpeechRef.current = false;
             try {
-                await LearningMode.speakWord(word);
+                await LearningMode.speakWord(word, language);
             } catch (error) {
-                if (sequence === speechSequenceRef.current && LearningMode.state.enabled && (error as { code?: string })?.code !== "TTS_INTERRUPTED") Toast.warn(error instanceof Error ? error.message : "发音不可用，请检查系统对应语言语音包");
+                if (sequence === speechSequenceRef.current && LearningMode.state.enabled && (error as { code?: string })?.code !== "TTS_INTERRUPTED") {
+                    const message = error instanceof Error ? error.message : "发音不可用，请检查系统对应语言语音包";
+                    setSpeechError(message);
+                    Toast.warn(message);
+                }
             }
             return;
         }
@@ -249,27 +259,32 @@ export default function Lyric(props: IProps) {
             if (!musicIsPaused(musicState)) {
                 await TrackPlayer.pause();
             }
-            await LyricDictionary.speak(word);
-        } catch {
-            if (sequence === speechSequenceRef.current) {
-                Toast.warn(t("lyric.wordLearning.ttsUnavailable"));
+            if (sequence !== speechSequenceRef.current) return;
+            await LyricDictionary.speakText(word, language, 1);
+        } catch (error) {
+            if (sequence === speechSequenceRef.current && (error as { code?: string })?.code !== "TTS_INTERRUPTED") {
+                const message = error instanceof Error ? error.message : t("lyric.wordLearning.ttsUnavailable");
+                setSpeechError(message);
+                Toast.warn(message);
             }
         } finally {
             if (sequence === speechSequenceRef.current && shouldResume && !LearningMode.state.enabled) {
                 resumeAfterSpeechRef.current = false;
-                await TrackPlayer.play();
+                await TrackPlayer.play().catch(() => undefined);
             }
         }
     }, [musicState, t]);
 
-    const onWordPress = useCallback(async (word: string) => {
+    const onWordPress = useCallback(async (word: string, language: LearningLanguage) => {
         const sequence = ++lookupSequenceRef.current;
         setSelectedWord(word);
+        setSelectedLanguage(language);
+        setDictionaryError("");
         setDictionaryEntry(null);
         setDictionaryLoading(true);
-        speakWord(word);
+        void speakWord(word, language);
         try {
-            const japanese = hasJapanese(word) || (LearningMode.state.enabled && LearningMode.language === "ja" && /[\u3400-\u9fff]/.test(word));
+            const japanese = language === "ja";
             if (!japanese && /[\u3400-\u9fff]/.test(word)) {
                 if (sequence === lookupSequenceRef.current) setDictionaryEntry({ word, matchedWord: word, definition: "当前仅提供发音，尚未内置粤语／中文词典和粤拼。" });
                 return;
@@ -281,13 +296,16 @@ export default function Lyric(props: IProps) {
             if (japanese) {
                 void LyricDictionary.translate(word, "ja").then(translation => {
                     if (sequence === lookupSequenceRef.current) {
-                        setDictionaryEntry({ ...(entry ?? { word, matchedWord: word }), source: "edict", translation: `${translation}（机翻）` });
+                        setDictionaryEntry({ ...(entry ?? { word, matchedWord: word }), ...(entry ? { source: "edict" } : {}), translation: `${translation}（机翻）` });
                     }
-                }).catch(() => {});
+                }).catch(error => {
+                    if (sequence === lookupSequenceRef.current) setDictionaryError(`中文释义未完成：${error instanceof Error ? error.message : "请检查翻译模型是否已下载"}。词典原释义仍可查看。`);
+                });
             }
-        } catch {
+        } catch (error) {
             if (sequence === lookupSequenceRef.current) {
                 setDictionaryEntry(null);
+                setDictionaryError(`词典查询失败：${error instanceof Error ? error.message : "请稍后重试"}`);
             }
         } finally {
             if (sequence === lookupSequenceRef.current) {
@@ -301,10 +319,11 @@ export default function Lyric(props: IProps) {
         speechSequenceRef.current += 1;
         setSelectedWord("");
         setDictionaryLoading(false);
-        LyricDictionary.stopSpeaking().finally(() => {
-            if (resumeAfterSpeechRef.current && !LearningMode.state.enabled) {
+        const sequence = speechSequenceRef.current;
+        LyricDictionary.stopSpeaking().catch(() => undefined).then(() => {
+            if (sequence === speechSequenceRef.current && resumeAfterSpeechRef.current && !LearningMode.state.enabled) {
                 resumeAfterSpeechRef.current = false;
-                TrackPlayer.play();
+                void TrackPlayer.play().catch(() => undefined);
             }
         });
     }, []);
@@ -406,7 +425,7 @@ export default function Lyric(props: IProps) {
                                         translation={learning.enabled ? (index === currentLrcItem?.index ? currentLrcItem.translation : item.translation) : showTranslation && hasTranslation ? item.translation : undefined}
                                         wordLearning={!!wordLearning}
                                         activeToken={learning.enabled && currentLrcItem?.index === index ? learning.activeToken : -1}
-                                        japanese={learning.enabled && learningLanguage(item.lrc, LearningMode.language) === "ja"}
+                                        wordLanguage={learning.enabled ? LearningMode.language : wordLanguage}
                                         learningLanguage={learning.enabled ? LearningMode.language : undefined}
                                         onWordPress={onWordPress}
                                         fontSize={fontSizeStyle.fontSize}
@@ -475,8 +494,13 @@ export default function Lyric(props: IProps) {
                 surfaceWord={selectedWord}
                 entry={dictionaryEntry}
                 loading={dictionaryLoading}
+                dictionaryError={dictionaryError}
+                speechError={speechError}
+                onRetry={() => {
+                    void onWordPress(selectedWord, selectedLanguage);
+                }}
                 onSpeak={() => {
-                    speakWord(selectedWord);
+                    void speakWord(selectedWord, selectedLanguage);
                 }}
                 onClose={closeWordCard}
             />

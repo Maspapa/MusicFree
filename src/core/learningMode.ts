@@ -155,12 +155,12 @@ const LearningMode = {
             clearTimeout(loopTimer); loopTimer = undefined; patch({ speaking: false });
         }
     },
-    async speakWord(word: string) {
+    async speakWord(word: string, language = learningLanguage(word, songLanguage)) {
         const stopping = pause();
         const sequence = generation;
         await stopping;
         if (sequence !== generation || !state().enabled) return;
-        await LyricDictionary.speakText(word, learningLanguage(word, songLanguage), 1);
+        await LyricDictionary.speakText(word, language, 1);
     },
 };
 

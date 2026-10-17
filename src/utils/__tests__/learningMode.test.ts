@@ -24,6 +24,11 @@ afterEach(async () => {
 });
 
 describe("learning playback", () => {
+    it("点词按该词语言发音，日语汉字不再误走英语", async () => {
+        await LearningMode.enter(lyrics); await flush();
+        await LearningMode.speakWord("天空", "ja");
+        expect(speech.speakText).toHaveBeenLastCalledWith("天空", "ja", 1);
+    });
     it("cycles through the three speeds and saves the selection without starting paused speech", async () => {
         expect(LearningMode.state.rate).toBe(0.5);
         await LearningMode.cycleRate();
